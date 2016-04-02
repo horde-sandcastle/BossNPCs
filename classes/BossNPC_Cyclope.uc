@@ -656,9 +656,10 @@ event TakeDamage(
 	}
 }
 
-simulated displayHitEffects(vector Momentum, vector HitLocation) {
+simulated function displayHitEffects(vector Momentum, vector HitLocation) {
 	local ParticleSystem BloodTemplate;
 	local UTEmit_HitEffect HitEffect;
+	local rotator BloodMomentum;
 
 	if(Momentum.X == 0) {
 		Momentum.X = 1;
