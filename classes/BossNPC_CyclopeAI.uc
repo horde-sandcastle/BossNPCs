@@ -3,18 +3,20 @@ class BossNPC_CyclopeAI extends BossNPC_AIBase;
 enum ECyclopeAttack
 {
 	CYCLOPE_ATTACK_SMASH,
-	
+
 	CYCLOPE_ATTACK_FOOT_CRUSH,
 	CYCLOPE_ATTACK_FOOT_KICK,
-	
+
 	CYCLOPE_ATTACK_FORWARD,
 	CYCLOPE_ATTACK_FORWARD_2,
-	
+
 	CYCLOPE_ATTACK_LEFT,
 	CYCLOPE_ATTACK_RIGHT,
-    
+
     CYCLOPE_ATTACK_SIDE_LEFT,
-    CYCLOPE_ATTACK_SIDE_RIGHT
+    CYCLOPE_ATTACK_SIDE_RIGHT,
+
+    CYCLOPE_ATTACK_THROW_GROUND
 };
 
 var name m_CurrentTurnSeqName;
@@ -35,22 +37,22 @@ state Turn
     event PushedState()
     {
         m_HitLockCount++;
-        
+
         m_Pawn.PlayCustomAnim(m_CurrentTurnSeqName);
     }
-    
+
     event PoppedState()
     {
         m_HitLockCount--;
     }
-    
+
     function FoundCombatTarget() { }
-    
+
     function LostCombatTarget() { }
-    
+
 Begin:
     FinishAnim(m_Pawn.m_CustomAnimSequence);
-    
+
     PopState();
 }
 
@@ -59,11 +61,11 @@ state Combating
     function TurnToTarget(float Angle)
     {
         super.TurnToTarget(Angle);
-        
+
         if (Abs(angle) > 15)
         {
 	        if (Angle < 0)
-	        {  
+	        {
 	            if (Angle <= -60)
 	            {
 	            	if (Angle < -120)
@@ -79,7 +81,7 @@ state Combating
 	                m_CurrentTurnSeqName = 'Turn_45_Left';
 	        }
 	        else
-	        {  
+	        {
 	            if (Angle >= 60)
 	            {
 	               if (Angle > 120)
@@ -94,7 +96,7 @@ state Combating
 	            else
 	            	m_CurrentTurnSeqName = 'Turn_45_Right';
 	        }
-	        
+
 	        PushState('Turn');
         }
     }
@@ -111,18 +113,18 @@ state Hit
         else
         if (angle > +45)
         {
-            m_Pawn.PlayCustomAnim('Hit_Right');   
+            m_Pawn.PlayCustomAnim('Hit_Right');
         }
         else
         if (Abs(angle) > 120)
-        {   
-            m_Pawn.PlayCustomAnim('Hit_Back');   
+        {
+            m_Pawn.PlayCustomAnim('Hit_Back');
         }
         else
         {
-            m_Pawn.PlayCustomAnim('Hit_Front');   
+            m_Pawn.PlayCustomAnim('Hit_Front');
         }
-        
+
         return true;
     }
 }
@@ -131,32 +133,35 @@ static private function name GetAttackSequenceName(ECyclopeAttack attackID)
 {
     switch (attackID)
     {
-    case CYCLOPE_ATTACK_SMASH: 
+    case CYCLOPE_ATTACK_SMASH:
         return 'Attack_Dual';
-    
-    case CYCLOPE_ATTACK_FOOT_CRUSH: 
+
+    case CYCLOPE_ATTACK_FOOT_CRUSH:
         return 'Attack_Foot_Crush';
-        
-    case CYCLOPE_ATTACK_FOOT_KICK: 
+
+    case CYCLOPE_ATTACK_FOOT_KICK:
         return 'Attack_Foot_Shoot';
-    
-    case CYCLOPE_ATTACK_FORWARD: 
+
+    case CYCLOPE_ATTACK_FORWARD:
         return 'Attack_Forward';
-        
-    case CYCLOPE_ATTACK_FORWARD_2: 
+
+    case CYCLOPE_ATTACK_FORWARD_2:
         return 'Attack_Forward_Left';
-    
-    case CYCLOPE_ATTACK_LEFT: 
+
+    case CYCLOPE_ATTACK_LEFT:
         return 'Attack_Left';
-        
-    case CYCLOPE_ATTACK_RIGHT: 
+
+    case CYCLOPE_ATTACK_RIGHT:
         return 'Attack_Right';
-    
-    case CYCLOPE_ATTACK_SIDE_LEFT: 
+
+    case CYCLOPE_ATTACK_SIDE_LEFT:
         return 'Attack_Side_Left';
-        
-    case CYCLOPE_ATTACK_SIDE_RIGHT: 
+
+    case CYCLOPE_ATTACK_SIDE_RIGHT:
         return 'Attack_Side_Right';
+
+    case CYCLOPE_ATTACK_THROW_GROUND:
+        return 'Grab_Human_Right';
     }
 }
 
@@ -167,42 +172,44 @@ state PerformingAttack
         m_HitLockCount++;
         m_Pawn.PlayCustomAnim(GetAttackSequenceName(m_CurrentAttack));
     }
-    
+
     event PoppedState()
     {
         m_HitLockCount--;
     }
-    
+
     function FoundCombatTarget() { }
-    
+
     function LostCombatTarget() { }
-    
+
 Begin:
     FinishAnim(m_Pawn.m_CustomAnimSequence);
     PopState();
 }
 
-state Attacking 
+state Attacking
 {
-    function bool BeginAttack(out float Cooldown)
-    {
+    function bool BeginAttack(out float Cooldown) {
         local Vector dirToTarget;
         local Vector targetLoc;
         local float dist;
         local float targetAngle;
         local ECyclopeAttack attack;
         local int rr;
-        
+
         if( activeTask != none )
             targetLoc = activeTask.location;
-        else 
+        else
             targetLoc = m_CombatTarget.location;
-        
+
         dirToTarget = Normal2D(targetLoc - m_Pawn.Location);
         dist = VSize2D(targetLoc - m_Pawn.Location);
         targetAngle = NOZDot(Vector(m_Pawn.Rotation), dirToTarget);
-        
-        if( restrictedAttack != noRestrictedAttack ) {
+
+        if (dist > m_CombatChaseEndDistance) {
+			attack = CYCLOPE_ATTACK_THROW_GROUND;
+        }
+        else if( restrictedAttack != noRestrictedAttack ) {
          	attack = ECyclopeAttack(restrictedAttack);
         }
         else {
@@ -211,11 +218,11 @@ state Attacking
 	        }
 	        else {
 	            targetAngle = Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776;
-	            
+
 	            if (Abs(targetAngle) <= 45)
 	            {
 	                rr = Rand(11);
-	                
+
 	                if (rr < 3)
 	                {
 	                    attack = CYCLOPE_ATTACK_FOOT_CRUSH;
@@ -263,7 +270,7 @@ state Attacking
 	            }
 	        }
         }
-        
+
         if( attack == CYCLOPE_ATTACK_SMASH) {
      	    Cooldown = 0.6;
      	    m_SmashAttackEnabled = false;
@@ -272,10 +279,11 @@ state Attacking
      	else {
      	    Cooldown = 0.8;
      	}
-     	
+
         m_CurrentAttack = attack;
+
         PushState('PerformingAttack');
-        
+
         return true;
     }
 }
@@ -284,8 +292,8 @@ state Dying
 {
     function bool BeginDeathSequence()
     {
-        m_Pawn.PlayCustomAnim('Die'); 
-        
+        m_Pawn.PlayCustomAnim('Die');
+
         return true;
     }
 }
@@ -294,9 +302,9 @@ defaultproperties
 {
 	m_SeeRadius = 50000000
 	m_NoticeRadius = 10000000
-	
+
     m_CombatChaseEndDistance = 350
     m_CombatChaseSprintDistance = 1000
-    
+
     m_SmashAttackEnabled = true
 }

@@ -19,7 +19,7 @@ var float m_CombatTargetResetDelay;
 var bool  m_CombatCanAttack;
 // if restrictedAttack is always active set to true
 // otherwise restrictedAttack is reset to noRestrictedAttack 255 (= -1) after the attack
-var bool  isAttackRestricted; 
+var bool  isAttackRestricted;
 var byte  restrictedAttack;
 
 var float m_CombatChaseEndDistance;
@@ -51,18 +51,18 @@ event Possess(Pawn inPawn, bool bVehicleTransition)
 	super.Possess(inPawn, bVehicleTransition);
 	getAllTasks();
     m_Pawn = BossNPC_PawnBase(inPawn);
-   
+
     m_Pawn.SetMovementPhysics();
-    
+
     self.SetTickIsDisabled(false);
-    
+
     GotoState('Idle',, true, false);
 }
 
 function RotateTo(Vector Dir)
 {
     self.SetFocalPoint(m_Pawn.Location + Dir * 1000);
-    
+
     m_Pawn.SetDesiredRotation(Rotator(Dir));
 }
 
@@ -70,23 +70,23 @@ function bool IsValidTarget(Pawn targetPawn)
 {
     if (targetPawn == m_Pawn)
         return false;
-    
+
     if(isAgatha(targetPawn))
         return false;
-    
+
     if (targetPawn.bTearOff || targetPawn.Health <= 0)
         return false;
-    
+
     if (AOCPawn(targetPawn) != none && AOCPawn(targetPawn).bPawnIsDead)
         return false;
-    
+
     return true;
 }
 
 function bool isAgatha(Actor Victim) {
 	if (AOCPawn(Victim) != none && AOCPawn(Victim).PawnInfo.myFamily.FamilyFaction == EFAC_AGATHA )
-		return true; 
-	
+		return true;
+
 	return false;
 }
 
@@ -95,19 +95,19 @@ function bool IsValidCombatTarget(Pawn targetPawn, bool noticeOnly)
 	local float dist;
 
 	if (!self.IsValidTarget(targetPawn))
-		return false;	
-	
+		return false;
+
 	dist = VSize(targetPawn.Location - m_Pawn.Location);
-	
+
 	if (dist > m_NoticeRadius)
 	{
 		if (noticeOnly)
 			return false;
-		
+
 		if (dist > m_SeeRadius || !self.CanSee(targetPawn))
 			return false;
 	}
-	
+
 	//return self.ActorReachable(targetPawn);
 	if(!autoAggro) return false;
 	return true;
@@ -117,15 +117,15 @@ function Pawn FindCombatTarget()
 {
     local WorldInfo world;
     local Pawn targetPawn;
-    
+
     world = class'WorldInfo'.static.GetWorldInfo();
-    
+
     foreach world.VisibleActors(class'Pawn', targetPawn, m_Pawn.SightRadius, m_Pawn.Location)
-    {   
+    {
         if (IsValidCombatTarget(targetPawn, false))
             return targetPawn;
     }
-    
+
     return none;
 }
 
@@ -134,28 +134,28 @@ function Pawn FindClosestCombatTarget(bool noticeOnly)
     local WorldInfo world;
     local Pawn targetPawn;
     local Pawn closestPawn;
-    
+
     local float dist;
     local float minDist;
-    
+
     minDist = 99999;
-    
+
     world = class'WorldInfo'.static.GetWorldInfo();
-    
+
     foreach world.VisibleActors(class'Pawn', targetPawn, m_Pawn.SightRadius, m_Pawn.Location)
-    {   
+    {
         if (IsValidCombatTarget(targetPawn, noticeOnly))
         {
             dist = VSize(targetPawn.Location - m_Pawn.Location);
-            
+
             if (dist < minDist)
             {
                 closestPawn = targetPawn;
-                minDist = dist;   
+                minDist = dist;
             }
         }
     }
-    
+
     return closestPawn;
 }
 
@@ -165,7 +165,7 @@ event Tick(float DeltaTime)
 
     if (m_Dead)
         return;
-    
+
     if(!isBusyWithTask())
     	manageCombatTarget(DeltaTime);
     else
@@ -197,7 +197,7 @@ function NpcTask checkForTask() {
 		if( !task.isCompleted)
 			return task;
 	}
-	
+
 	return none;
 }
 
@@ -213,19 +213,19 @@ function getAllTasks() {
 */
 function manageCombatTarget(float DeltaTime) {
 	local Pawn otherTarget;
-	
+
     if (m_Pawn.m_IsInCombat)
         m_CombatWithoutAttackInterval += DeltaTime;
-    
+
     if (m_NextHitDelay > 0)
         m_NextHitDelay -= DeltaTime;
-    
+
     if (m_CombatTarget == none)
     {
             m_CombatTargetSearchDelay -= DeltaTime;
         if (m_CombatTargetSearchDelay <= 0)
         {   m_CombatTargetSearchDelay = 0.25;
-        
+
                 m_CombatTarget = FindCombatTarget();
             if (m_CombatTarget != none)
             {
@@ -244,13 +244,13 @@ function manageCombatTarget(float DeltaTime) {
     {
         if (m_CombatWithoutAttackInterval > 5)
         {   m_CombatWithoutAttackInterval = 0;
-        
+
 	            m_CombatTargetResetDelay -= DeltaTime;
 	        if (m_CombatTargetResetDelay <= 0)
 	        {   m_CombatTargetResetDelay = RandRange(3, 6);
-	            
+
 	            otherTarget = self.FindClosestCombatTarget(true);
-	            
+
 	            if (otherTarget != m_CombatTarget
 	            && VSize2D(otherTarget.Location - m_Pawn.Location) < VSize2D(m_CombatTarget.Location - m_Pawn.Location))
 	            {
@@ -269,18 +269,18 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
     local Vector dirToTarget;
     local float targetAngle;
     super.NotifyTakeHit(InstigatedBy, HitLocation, Damage, damageType, Momentum);
-    
+
     if (m_Dead)
         return;
-    
+
     if (m_HitLockCount > 0)
         return;
-       
+
     dirToTarget = Normal(m_Pawn.Location - HitLocation);
     targetAngle = NOZDot(Vector(m_Pawn.Rotation), dirToTarget);
-    
+
     m_HitAngle = Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776;
-    
+
     if (m_NextHitDelay <= 0) {
         PushState('Hit');
     }
@@ -289,9 +289,9 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
 state DoingTask
 {
 	event BeginState(Name PreviousStateName) {}
-    
+
 	event EndState(Name NextStateName) {m_Pawn.m_IsSprinting = false;}
-    
+
     function DoTask() {
 		if( NpcTaskAttack(activeTask) != none && taskInReach()) {
 			activeTask.triggerKismetEvent(self);
@@ -299,20 +299,20 @@ state DoingTask
 		    GotoState('Attacking');
 		}
     }
-    
-	function bool taskInReach() { 
+
+	function bool taskInReach() {
 		return (vSizeSq(m_Pawn.location - activeTask.location) < activeTask.npcInReach ** 2);
 	}
-    
+
 Begin:
 	if( activeTask == none || activeTask.isCompleted ) {
 		activeTask = none;
 		GotoState('Idle');
 	}
-	
+
 	// ends the state to do the task when arrived
 	DoTask();
-	
+
     m_Pawn.m_IsSprinting = activeTask.sprint;
 	RotateTo(activeTask.location - m_Pawn.location);
 	MoveToward(activeTask, , activeTask.npcInReach - 150);
@@ -326,15 +326,15 @@ state Idle
     {
         m_Pawn.m_IsInCombat = false;
     }
-    
+
     event EndState(Name NextStateName)
-    { 
+    {
     }
-    
+
     event Tick(float DeltaTime)
     {
         super.Tick(DeltaTime);
-        
+
         if (m_CombatTarget == none && activeTask == none)
         {
 	            m_WanderStartDelay -= DeltaTime;
@@ -342,7 +342,7 @@ state Idle
 	            GotoState('Wandering');
         }
     }
-	
+
 	function FoundCombatTarget()
 	{
 	    GotoState('Combating');
@@ -356,18 +356,18 @@ state Wandering
 		m_WanderRemainingTime = RandRange(m_WanderDuration.X, m_WanderDuration.Y);
 		m_WanderDirection = RandGroundDirection();
 	}
-	
+
 	event EndState(Name NextStateName)
 	{
         m_Pawn.Acceleration = Vec3(0, 0, 0);
-    
+
 		m_WanderStartDelay = RandRange(m_WanderDelay.X, m_WanderDelay.Y);
 	}
-	
+
 	event Tick(float DeltaTime)
 	{
         super.Tick(DeltaTime);
-        
+
         if (m_CombatTarget == none && activeTask == none)
         {
 	            m_WanderRemainingTime -= DeltaTime;
@@ -375,16 +375,16 @@ state Wandering
 		        GotoState('Idle');
         }
 	}
-    
+
     function FoundCombatTarget()
     {
         GotoState('Combating');
     }
-	
+
 Begin:
     RotateTo(
         m_WanderDirection);
-    
+
     MoveTo(
         m_Pawn.Location + m_WanderDirection * m_Pawn.GetMoveSpeed());
 
@@ -394,55 +394,54 @@ Begin:
 state Combating
 {
     event BeginState(Name PreviousStateName)
-    { 
+    {
         m_Pawn.m_IsInCombat = true;
     }
-    
+
     event EndState(Name NextStateName)
     {
     }
-    
+
     function TurnToTarget(float angle)
-    {   
+    {
         if (Abs(angle) > 15)
         {
 	        RotateTo(
 	            Normal2D(m_CombatTarget.Location - m_Pawn.Location));
         }
     }
-    
-    event Tick(float DeltaTime)
-    {
+
+    event Tick(float DeltaTime) {
         local float dist;
-        
         local Vector dirToTarget;
         local float targetAngle;
-        
+        local bool doAttack;
+
         super.Tick(DeltaTime);
-        
-        if (m_CombatTarget != none)
-        {
-		    dist = VSize2D(m_CombatTarget.Location - m_Pawn.Location);
-		            
-            if (dist > m_CombatChaseEndDistance)
-                GotoState('Chasing');
-            else
-            {
-		        dirToTarget = Normal2D(m_CombatTarget.Location - m_Pawn.Location);
-		        
+
+        if (m_CombatTarget != none) {
+            if(Rand(11) < 4 && restrictedAttack == noRestrictedAttack) {
+            	doAttack = true; // we may need to check cansee taget here
+            }
+            else {
+                dist = VSize2D(m_CombatTarget.Location - m_Pawn.Location);
+                doAttack = dist <= m_CombatChaseEndDistance;
+            }
+
+            if (doAttack) {
+                dirToTarget = Normal2D(m_CombatTarget.Location - m_Pawn.Location);
 		        targetAngle = NOZDot(Vector(m_Pawn.Rotation), dirToTarget);
-		        
-		        TurnToTarget(
-		          Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776);
-		        
-			    if (m_CombatCanAttack)
-			    {
+		        TurnToTarget(Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776);
+
+			    if (m_CombatCanAttack) {
 			    	GotoState('Attacking');
 			    }
             }
+            else
+                GotoState('Chasing');
         }
     }
-    
+
     function LostCombatTarget()
     {
         GotoState('Idle');
@@ -452,36 +451,36 @@ state Combating
 state Chasing
 {
     local float dist;
-    
+
     event BeginState(Name PreviousStateName) { }
-    
+
     event EndState(Name NextStateName)
     {
         m_Pawn.Acceleration = Vec3(0, 0, 0);
-        
+
         m_Pawn.m_IsSprinting = false;
     }
-    
+
     function LostCombatTarget()
     {
         GotoState('Idle');
     }
-    
+
 Begin:
     while (m_CombatTarget != none)
     {
 	    dist = VSize2D(m_CombatTarget.Location - m_Pawn.Location);
-	    
+
         if (dist > m_CombatChaseSprintDistance)
         {
             m_Pawn.m_IsSprinting = true;
         }
-        
+
         RotateTo(
             Normal2D(m_CombatTarget.Location - m_Pawn.Location));
-            
+
         MoveToward(m_CombatTarget,, m_CombatChaseEndDistance / 2);
-	        
+
         if (dist <= m_CombatChaseEndDistance)
         {
             GotoState('Combating');
@@ -496,32 +495,32 @@ state Hit
     {
         return false;
     }
-    
+
     event PushedState()
     {
     }
-    
+
     event PoppedState()
     {
-    
+
     }
-    
+
     function FoundCombatTarget() { }
-    
+
     function LostCombatTarget() { }
-    
+
 Begin:
 	m_pawn.acceleration = vect(0,0,0);
     FinishRotation();
-    
+
     if (BeginHitSequence(m_HitAngle))
     {
         FinishAnim(m_Pawn.m_CustomAnimSequence);
-        
+
         m_NextHitDelay = RandRange(8, 10);
         autoAggro = true;
     }
-    
+
     PopState();
 }
 
@@ -533,41 +532,41 @@ function ResetAttack()
 state Attacking
 {
     local float returnedCooldown;
-    
+
     event BeginState(Name PreviousStateName)
     {
         m_HitLockCount++;
     }
-    
+
     event EndState(Name NextStateName)
     {
         m_HitLockCount--;
         if( !isAttackRestricted )
         	restrictedAttack = noRestrictedAttack;
     }
-    
+
     function bool BeginAttack(out float Cooldown)
     {
         Cooldown = -1;
-        
+
         return false;
     }
-    
+
 Begin:
     FinishRotation();
-    
+
     if (BeginAttack(returnedCooldown))
     {
         m_CombatWithoutAttackInterval = 0;
-        
+
         if (returnedCooldown > 0)
         {
             m_CombatCanAttack = false;
-            
+
             SetTimer(returnedCooldown, false, 'ResetAttack');
-        }   
+        }
     }
-    
+
     if (activeTask != none )
         GotoState('DoingTask');
     else if (m_CombatTarget != none)
@@ -576,10 +575,10 @@ Begin:
         GotoState('Idle');
 }
 
-function _Dead() 
-{ 
+function _Dead()
+{
 	m_Pawn.Destroy();
-	
+
     self.Destroy();
 }
 
@@ -593,44 +592,44 @@ state Dying
     event BeginState(Name PreviousStateName)
     {
         m_Dead = true;
-    
+
         SetTimer(10.0, false, '_Dead');
     }
-    
+
     event EndState(Name NextStateName)
     {
     }
-    
+
     function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) { }
-    
+
     function bool BeginDeathSequence()
     {
         return false;
     }
-    
+
 Begin:
     if (BeginDeathSequence())
     {
         FinishAnim(m_Pawn.m_CustomAnimSequence);
     }
-    
+
     m_Pawn.MakeRagdoll();
 }
 
 defaultproperties
 {
 	autoAggro = true
-	m_WanderDelay = (X=2, Y=6) 
+	m_WanderDelay = (X=2, Y=6)
 	m_WanderDuration = (X=2, Y=6)
-	
+
     m_SeeRadius = 2000
     m_NoticeRadius = 500
-	
+
 	m_CombatCanAttack = true
-	
-	m_CombatChaseEndDistance = 60 
+
+	m_CombatChaseEndDistance = 60
 	m_CombatChaseSprintDistance = 500
-	
+
 	taskCheckInterval = 2.f
 	noRestrictedAttack = 255
 	restrictedAttack = 255 // equals -1

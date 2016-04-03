@@ -30,6 +30,8 @@ var float m_BreathDelay;
 var Dict  m_AttackedPawns;
 var bool appliedKick;
 
+var StaticMeshComponent ballProjComp; // dirtball attached to right hand
+
 `include(Stocks)
 `include(Log)
 
@@ -315,10 +317,8 @@ const LEFT_RIGHT_DMG_FORCE  = 200.0;
 private function ApplyAttack_Left()
 {
     local WorldInfo world;
-
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
-
     local Pawn pawn;
 
     world = class'WorldInfo'.static.GetWorldInfo();
@@ -466,6 +466,67 @@ private function ApplyAttack_Side_Right()
             true,
             self);
     }
+}
+
+/*
+* Spawn a dirtball in the right hand because the cyclops currently grabs the ground
+* Called from the animation.
+*/
+private function Grabbed() {
+    local Vector ballPos;
+    local Rotator ballRot;
+
+    m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', ballPos, ballRot);
+
+    ballProjComp = new(self) class'StaticMeshComponent';
+    ballProjComp.SetStaticMesh(StaticMesh'CHV_Weapons-siege.Bastilla.Catapult_Rock');
+    ballProjComp.bacceptsDynamicDominantLightShadows = false;
+    ballProjComp.bCastDynamicShadow = false;
+    ballProjComp.castShadow = false;
+    ballProjComp.lightmassSettings.bUseEmissiveForStaticLighting  = true;
+    ballProjComp.lightmassSettings.EmissiveBoost = 10;
+    ballProjComp.settranslation( vec3(-10, -10, 0) );
+
+	mesh.AttachComponentToSocket(ballProjComp, 'Right_Socket');
+}
+
+/*
+* Spawn a dirtball-projectile at the right hand to throw
+* Called from the animation.
+*/
+private function Released() {
+    local Vector ballPos;
+    local Rotator ballRot;
+    local vector targetLoc;
+
+    m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', ballPos, ballRot);
+
+	ballProjComp.detachFromAny();
+	ballProjComp = none;
+
+	targetLoc = BossNPC_CyclopeAI(controller).m_CombatTarget.location;
+    SpawnProjectile(ballPos, targetLoc);
+}
+
+const PROJ_DMG = 400.0;
+const PROJ_SPEED = 1550.0;
+
+simulated function SpawnProjectile( Vector startLoc, vector targetLoc ) {
+	local Projectile SpawnedProjectile;
+	local Rotator aim;
+
+	aim = Rotator(targetLoc - startLoc);
+	SpawnedProjectile = Spawn(class'Proj_Rock',self,, startLoc, aim);
+
+	if ( SpawnedProjectile != None ) {
+		AOCProjectile(SpawnedProjectile).Drag = 0;
+		AOCProjectile(SpawnedProjectile).Damage = PROJ_DMG;
+		Proj_Rock(SpawnedProjectile).Mesh.setScale( 1.1 );
+		AOCProjectile(SpawnedProjectile).Speed = PROJ_SPEED;
+		AOCProjectile(SpawnedProjectile).MaxSpeed = PROJ_SPEED;
+		AOCProjectile(SpawnedProjectile).PrevLocation = startLoc;
+		AOCProjectile(SpawnedProjectile).AOCInit(Aim);
+	}
 }
 
 simulated function PlaySound_Breathing()
@@ -616,8 +677,7 @@ simulated function PlaySound_Whoosh()
 {
 	if (self.Role != ROLE_Authority || self.IsLocallyControlled())
 	{
-        self.PlaySound(
-	       m_Cues_Whoosh, true,,, self.Location);
+        self.PlaySound(m_Cues_Whoosh, true,,, self.Location);
     }
 }
 
