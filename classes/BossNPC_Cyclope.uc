@@ -42,6 +42,10 @@ simulated event PostBeginPlay()
 {
 	super.PostBeginPlay();
 
+	if (controller == none && (Health > 0) && !bDontPossess ) {
+		SpawnDefaultController();
+	}
+
 	m_AttackedPawns = new class'Dict';
 
 	m_BodyMesh.SetScale(2.15);
@@ -736,6 +740,10 @@ simulated function displayHitEffects(vector Momentum, vector HitLocation) {
 		HitEffect.SetTemplate(BloodTemplate, true);
 		HitEffect.AttachTo(self, 'SK_Head');
 	}
+}
+
+function String GetNotifyKilledHudMarkupText() {
+	return "<font color=\"#B27500\">Cyclops</font>";
 }
 
 defaultproperties

@@ -1,4 +1,4 @@
-class BossNPC_PawnBase extends Pawn;
+class BossNPC_PawnBase extends Pawn implements (IBossNpcPawn);
 
 var PrivateWrite SkeletalMeshComponent 		      m_BodyMesh;
 var PrivateWrite DynamicLightEnvironmentComponent m_MeshLighEnv;
@@ -180,6 +180,10 @@ function bool FindNearestBone(vector InitialHitLocation, out name BestBone, out 
 		}
 	}
 	return false;
+}
+
+function String GetNotifyKilledHudMarkupText() {
+	return "<font color=\"#B27500\">Boss NPC</font>";
 }
 
 defaultproperties
