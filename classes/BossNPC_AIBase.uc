@@ -42,6 +42,8 @@ var const byte noRestrictedAttack;
 // default: true, denotes if NPC should automatically search for targets and attack
 // if false, the cyclops only attacks after being attacked
 var() bool autoAggro;
+// default: false, if true the nearest enemy pawns is picked as a new target instead of visible pawns
+var() bool perfectEnemyKnowledge;
 
 `include(Stocks)
 `include(Log)
@@ -113,46 +115,55 @@ function bool IsValidCombatTarget(Pawn targetPawn, bool noticeOnly)
 	return true;
 }
 
-function Pawn FindCombatTarget()
-{
+function Pawn FindCombatTarget() {
     local WorldInfo world;
     local Pawn targetPawn;
+    local array<Pawn> targets;
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    foreach world.VisibleActors(class'Pawn', targetPawn, m_Pawn.SightRadius, m_Pawn.Location)
-    {
-        if (IsValidCombatTarget(targetPawn, false))
-            return targetPawn;
-    }
+	if(perfectEnemyKnowledge) {
+		foreach world.AllPawns(class'Pawn', targetPawn) {
+	        if (IsValidCombatTarget(targetPawn, false))
+	            targets.addItem(targetPawn);
+	    }
+	    return findClosestPawn(targets);
+	}
+	else {
+		foreach world.VisibleActors(class'Pawn', targetPawn, m_Pawn.SightRadius, m_Pawn.Location) {
+	        if (IsValidCombatTarget(targetPawn, false))
+	            return targetPawn;
+	    }
+	}
 
     return none;
 }
 
-function Pawn FindClosestCombatTarget(bool noticeOnly)
-{
+function Pawn FindClosestCombatTarget(bool noticeOnly) {
     local WorldInfo world;
+    local array<Pawn> targetPawns;
     local Pawn targetPawn;
-    local Pawn closestPawn;
-
-    local float dist;
-    local float minDist;
-
-    minDist = 99999;
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    foreach world.VisibleActors(class'Pawn', targetPawn, m_Pawn.SightRadius, m_Pawn.Location)
-    {
+    foreach world.VisibleActors(class'Pawn', targetPawn, m_Pawn.SightRadius, m_Pawn.Location) {
         if (IsValidCombatTarget(targetPawn, noticeOnly))
-        {
-            dist = VSize(targetPawn.Location - m_Pawn.Location);
+			targetPawns.addItem(targetPawn);
+    }
 
-            if (dist < minDist)
-            {
-                closestPawn = targetPawn;
-                minDist = dist;
-            }
+    return findClosestPawn(targetPawns, 999999999);
+}
+
+function Pawn findClosestPawn(array<Pawn> pawns, optional float minDist = -1) {
+	local Pawn currentPawn;
+	local Pawn closestPawn;
+	local float dist;
+
+	foreach pawns(currentPawn) {
+        dist = VSizeSq(currentPawn.Location - m_Pawn.Location);
+        if (minDist <= 0 || dist < minDist) {
+            closestPawn = currentPawn;
+            minDist = dist;
         }
     }
 
@@ -220,28 +231,23 @@ function manageCombatTarget(float DeltaTime) {
     if (m_NextHitDelay > 0)
         m_NextHitDelay -= DeltaTime;
 
-    if (m_CombatTarget == none)
-    {
+    if (m_CombatTarget == none) {
             m_CombatTargetSearchDelay -= DeltaTime;
-        if (m_CombatTargetSearchDelay <= 0)
-        {   m_CombatTargetSearchDelay = 0.25;
+        if (m_CombatTargetSearchDelay <= 0) {
+        	m_CombatTargetSearchDelay = 0.25;
+            m_CombatTarget = FindCombatTarget();
 
-                m_CombatTarget = FindCombatTarget();
-            if (m_CombatTarget != none)
-            {
+            if (m_CombatTarget != none) {
                 FoundCombatTarget();
             }
         }
     }
-    else
-    if (!IsValidCombatTarget(m_CombatTarget, false))
-    {
+    else if (!IsValidCombatTarget(m_CombatTarget, false)) {
         m_CombatTarget = none;
 
         LostCombatTarget();
     }
-    else
-    {
+    else {
         if (m_CombatWithoutAttackInterval > 5)
         {   m_CombatWithoutAttackInterval = 0;
 
@@ -251,7 +257,7 @@ function manageCombatTarget(float DeltaTime) {
 
 	            otherTarget = self.FindClosestCombatTarget(true);
 
-	            if (otherTarget != m_CombatTarget
+	            if (otherTarget != none && otherTarget != m_CombatTarget
 	            && VSize2D(otherTarget.Location - m_Pawn.Location) < VSize2D(m_CombatTarget.Location - m_Pawn.Location))
 	            {
 	                m_CombatTarget = otherTarget;
