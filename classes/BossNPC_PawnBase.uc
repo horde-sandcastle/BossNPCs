@@ -35,14 +35,11 @@ replication
 		m_Speed, m_IsSprinting, m_SprintSpeed, m_IsInCombat, m_CustomAnimSeqName, m_CustomAnimSeqPlayID;
 }
 
-simulated event PostInitAnimTree(SkeletalMeshComponent SkelComp)
-{
+simulated event PostInitAnimTree(SkeletalMeshComponent SkelComp) {
     super.PostInitAnimTree(SkelComp);
 
     m_CustomAnimBlend = AnimNodeBlend(m_BodyMesh.FindAnimNode('CustomAnim_Blend'));
-
     m_CustomAnimSequence = AnimNodeSequence(m_BodyMesh.FindAnimNode('CustomAnim_Sequence'));
-
     m_CustomAnimSequence.bCauseActorAnimEnd = true;
 }
 
@@ -61,12 +58,22 @@ simulated function float GetMoveSpeed()
 	return m_IsSprinting ? m_SprintSpeed : (m_IsInCombat ? m_CombatSpeed : m_Speed);
 }
 
-simulated event Tick(float DeltaTime)
-{
+simulated event Tick(float DeltaTime) {
 	local float speed;
+	local Rotator newRotation;
+
+	if(BossNPC_AIBase(self.Controller).m_Dead) {
+		self.AirSpeed    = 0;
+    	self.GroundSpeed = 0;
+    	velocity = vec3(0,0,0);
+		newRotation = Rotation;
+		newRotation.Pitch -= 3000 * DeltaTime;
+		SetRotation( newRotation );
+
+ 		return;
+	}
 
 	speed = self.GetMoveSpeed();
-
     self.AirSpeed    = speed;
     self.GroundSpeed = speed;
 
@@ -122,19 +129,6 @@ simulated event PlayFootStepSound(int FootDown)
 }
 
 function gibbedBy(actor Other) { }
-
-function MakeRagdoll()
-{
-    self.SetLocation(Vec3(self.Location.X, self.Location.Y, self.Location.Z + 45));
-
-    m_BodyMesh.bUpdateKinematicBonesFromAnimation = false;
-
-    self.InitRagdoll();
-
-    m_BodyMesh.StopAnim();
-
-    m_BodyMesh.WakeRigidBody();
-}
 
 function bool Died(Controller Killer, class<DamageType> DamageType, vector HitLocation)
 {

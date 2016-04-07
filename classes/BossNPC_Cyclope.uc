@@ -185,7 +185,6 @@ function ApplyAttack_FootKick() {
 
         m_AttackedPawns.Add(pawn, pawn);
 
-        //TODO: use death kick: ICyclopsAttackable(pawn.Controller).cyclopsKick(location);
 		AOCPawn(pawn).ReplicatedHitInfo.DamageString = "&";
         pawn.TakeRadiusDamage(
             self.Controller,
@@ -379,7 +378,7 @@ simulated function PlayDying(class<DamageType> DamageType, vector HitLoc) {
     bReplicateMovement = false;
     bTearOff = true;
     Velocity += TearOffMomentum;
-    SetDyingPhysics();
+    //SetDyingPhysics();
     bPlayedDeath = true;
 
     KismetDeathDelayTime = default.KismetDeathDelayTime + WorldInfo.TimeSeconds;

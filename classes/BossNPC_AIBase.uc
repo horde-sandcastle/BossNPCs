@@ -45,6 +45,8 @@ var() bool autoAggro;
 // default: false, if true the nearest enemy pawns is picked as a new target instead of visible pawns
 var() bool perfectEnemyKnowledge;
 
+var ParticleSystemComponent deathDust;
+
 `include(Stocks)
 `include(Log)
 
@@ -170,18 +172,18 @@ function Pawn findClosestPawn(array<Pawn> pawns, optional float minDist = -1) {
     return closestPawn;
 }
 
-event Tick(float DeltaTime)
-{
-	super.Tick(DeltaTime);
-
-    if (m_Dead)
+event Tick(float DeltaTime) {
+    if (m_Dead) {
         return;
+    }
+    super.Tick(DeltaTime);
 
     if(!isBusyWithTask())
     	manageCombatTarget(DeltaTime);
     else
         return;
 }
+
 
 /**
 * If there is an NpcTask to complete or in progress returns true
@@ -561,14 +563,11 @@ state Attacking
 Begin:
     FinishRotation();
 
-    if (BeginAttack(returnedCooldown))
-    {
+    if (BeginAttack(returnedCooldown)) {
         m_CombatWithoutAttackInterval = 0;
 
-        if (returnedCooldown > 0)
-        {
+        if (returnedCooldown > 0) {
             m_CombatCanAttack = false;
-
             SetTimer(returnedCooldown, false, 'ResetAttack');
         }
     }
@@ -581,25 +580,21 @@ Begin:
         GotoState('Idle');
 }
 
-function _Dead()
-{
+function _Dead() {
+	deathDust.deactivateSystem();
 	m_Pawn.Destroy();
 
     self.Destroy();
 }
 
-function PawnDiedEvent(Controller Killer, class<DamageType> DamageType)
-{
+function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) {
     GotoState('Dying',, false, false);
 }
 
-state Dying
-{
-    event BeginState(Name PreviousStateName)
-    {
+state Dying {
+    event BeginState(Name PreviousStateName) {
         m_Dead = true;
-
-        SetTimer(10.0, false, '_Dead');
+        SetTimer(6.0, false, '_Dead');
     }
 
     event EndState(Name NextStateName)
@@ -608,18 +603,31 @@ state Dying
 
     function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) { }
 
-    function bool BeginDeathSequence()
-    {
+    function bool BeginDeathSequence() {
         return false;
     }
 
-Begin:
-    if (BeginDeathSequence())
-    {
-        FinishAnim(m_Pawn.m_CustomAnimSequence);
+    function pawnFadeOut() {
+        local Vector centerPos;
+    	local Rotator cyclopsRot;
+
+	    m_Pawn.m_BodyMesh.GetSocketWorldLocationAndRotation('Smash_Socket', centerPos, cyclopsRot);
+	    deathDust = WorldInfo.MyEmitterPool.SpawnEmitter(ParticleSystem'CHV_PartiPack.Particles.P_smokepot',centerPos);
+	    deathDust.setscale( 5 );
     }
 
-    m_Pawn.MakeRagdoll();
+Begin:
+
+    if (BeginDeathSequence()) {
+        pawnFadeOut();
+        FinishAnim(m_Pawn.m_CustomAnimSequence);
+        m_Pawn.m_CustomAnimSequence.stopAnim();
+        AnimTree(m_Pawn.mesh.Animations).SetUseSavedPose(TRUE);
+		m_Pawn.Mesh.PhysicsWeight = 999.0;
+		m_pawn.SetPhysics(PHYS_None);
+    }
+
+    //m_Pawn.InitRagdoll(); <-- not working too well, makes cyclops deflate like a baloon
 }
 
 defaultproperties
