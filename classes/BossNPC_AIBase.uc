@@ -25,7 +25,7 @@ var byte  restrictedAttack;
 var float m_CombatChaseEndDistance;
 var float m_CombatChaseSprintDistance;
 
-var float m_CombatWithoutAttackInterval;
+var float m_CombatAttackDelay;
 
 var float m_HitAngle;
 var float m_NextHitDelay;
@@ -50,28 +50,22 @@ var ParticleSystemComponent deathDust;
 `include(Stocks)
 `include(Log)
 
-event Possess(Pawn inPawn, bool bVehicleTransition)
-{
+event Possess(Pawn inPawn, bool bVehicleTransition) {
 	super.Possess(inPawn, bVehicleTransition);
 	getAllTasks();
     m_Pawn = BossNPC_PawnBase(inPawn);
-
     m_Pawn.SetMovementPhysics();
-
     self.SetTickIsDisabled(false);
 
     GotoState('Idle',, true, false);
 }
 
-function RotateTo(Vector Dir)
-{
+function RotateTo(Vector Dir) {
     self.SetFocalPoint(m_Pawn.Location + Dir * 1000);
-
     m_Pawn.SetDesiredRotation(Rotator(Dir));
 }
 
-function bool IsValidTarget(Pawn targetPawn)
-{
+function bool IsValidTarget(Pawn targetPawn) {
     if (targetPawn == m_Pawn)
         return false;
 
@@ -94,8 +88,7 @@ function bool isAgatha(Actor Victim) {
 	return false;
 }
 
-function bool IsValidCombatTarget(Pawn targetPawn, bool noticeOnly)
-{
+function bool IsValidCombatTarget(Pawn targetPawn, bool noticeOnly) {
 	local float dist;
 
 	if (!self.IsValidTarget(targetPawn))
@@ -103,8 +96,7 @@ function bool IsValidCombatTarget(Pawn targetPawn, bool noticeOnly)
 
 	dist = VSize(targetPawn.Location - m_Pawn.Location);
 
-	if (dist > m_NoticeRadius)
-	{
+	if (dist > m_NoticeRadius) {
 		if (noticeOnly)
 			return false;
 
@@ -180,8 +172,6 @@ event Tick(float DeltaTime) {
 
     if(!isBusyWithTask())
     	manageCombatTarget(DeltaTime);
-    else
-        return;
 }
 
 
@@ -206,8 +196,7 @@ function bool isBusyWithTask() {
 function NpcTask checkForTask() {
 	local NpcTask task;
 	foreach allTasks(task) {
-		// TODO: consider prios here of NpcTask
-		if( !task.isCompleted)
+		if(task.hasPriority(self))
 			return task;
 	}
 
@@ -227,14 +216,12 @@ function getAllTasks() {
 function manageCombatTarget(float DeltaTime) {
 	local Pawn otherTarget;
 
-    if (m_Pawn.m_IsInCombat)
-        m_CombatWithoutAttackInterval += DeltaTime;
-
     if (m_NextHitDelay > 0)
         m_NextHitDelay -= DeltaTime;
 
     if (m_CombatTarget == none) {
-            m_CombatTargetSearchDelay -= DeltaTime;
+        m_CombatTargetSearchDelay -= DeltaTime;
+
         if (m_CombatTargetSearchDelay <= 0) {
         	m_CombatTargetSearchDelay = 0.25;
             m_CombatTarget = FindCombatTarget();
@@ -246,22 +233,19 @@ function manageCombatTarget(float DeltaTime) {
     }
     else if (!IsValidCombatTarget(m_CombatTarget, false)) {
         m_CombatTarget = none;
-
         LostCombatTarget();
     }
     else {
-        if (m_CombatWithoutAttackInterval > 5)
-        {   m_CombatWithoutAttackInterval = 0;
-
-	            m_CombatTargetResetDelay -= DeltaTime;
-	        if (m_CombatTargetResetDelay <= 0)
-	        {   m_CombatTargetResetDelay = RandRange(3, 6);
-
+        m_CombatAttackDelay += DeltaTime;
+        if (m_CombatAttackDelay > 5) {
+	        m_CombatAttackDelay = 0;
+			m_CombatTargetResetDelay -= DeltaTime;
+	        if (m_CombatTargetResetDelay <= 0) {
+	        	m_CombatTargetResetDelay = RandRange(3, 6);
 	            otherTarget = self.FindClosestCombatTarget(true);
-
-	            if (otherTarget != none && otherTarget != m_CombatTarget
-	            && VSize2D(otherTarget.Location - m_Pawn.Location) < VSize2D(m_CombatTarget.Location - m_Pawn.Location))
-	            {
+	            if (otherTarget != none
+	            	&& otherTarget != m_CombatTarget
+	            	&& VSize2D(otherTarget.Location - m_Pawn.Location) < VSize2D(m_CombatTarget.Location - m_Pawn.Location)) {
 	                m_CombatTarget = otherTarget;
 	            }
 	        }
@@ -328,31 +312,26 @@ Begin:
 goto 'Begin';
 }
 
-state Idle
-{
-    event BeginState(Name PreviousStateName)
-    {
+state Idle {
+    event BeginState(Name PreviousStateName) {
         m_Pawn.m_IsInCombat = false;
+        m_CombatTarget = none;
     }
 
-    event EndState(Name NextStateName)
-    {
+    event EndState(Name NextStateName) {
     }
 
-    event Tick(float DeltaTime)
-    {
-        super.Tick(DeltaTime);
+    event Tick(float DeltaTime) {
+        global.Tick(DeltaTime);
 
-        if (m_CombatTarget == none && activeTask == none)
-        {
+        if (m_CombatTarget == none && activeTask == none) {
 	            m_WanderStartDelay -= DeltaTime;
 	        if (m_WanderStartDelay <= 0)
 	            GotoState('Wandering');
         }
     }
 
-	function FoundCombatTarget()
-	{
+	function FoundCombatTarget() {
 	    GotoState('Combating');
 	}
 }
@@ -374,7 +353,7 @@ state Wandering
 
 	event Tick(float DeltaTime)
 	{
-        super.Tick(DeltaTime);
+        global.Tick(DeltaTime);
 
         if (m_CombatTarget == none && activeTask == none)
         {
@@ -425,7 +404,7 @@ state Combating
         local float targetAngle;
         local bool doAttack;
 
-        super.Tick(DeltaTime);
+        global.Tick(DeltaTime);
 
         if (m_CombatTarget != none) {
             if(Rand(11) < 4 && restrictedAttack == noRestrictedAttack) {
@@ -564,7 +543,7 @@ Begin:
     FinishRotation();
 
     if (BeginAttack(returnedCooldown)) {
-        m_CombatWithoutAttackInterval = 0;
+        m_CombatAttackDelay = 0;
 
         if (returnedCooldown > 0) {
             m_CombatCanAttack = false;
