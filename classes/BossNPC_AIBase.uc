@@ -81,8 +81,24 @@ function bool IsValidTarget(Pawn targetPawn) {
     return true;
 }
 
-function bool isAgatha(Actor Victim) {
-	if (AOCPawn(Victim) != none && AOCPawn(Victim).PawnInfo.myFamily.FamilyFaction == EFAC_AGATHA )
+function bool isAgatha(Actor act) {
+	return testFamilyFaction(act, EFAC_AGATHA);
+}
+
+function bool isMason(Actor act) {
+	return testFamilyFaction(act, EFAC_MASON);
+}
+
+function bool testFamilyFaction(Actor act, EAOCFaction faction) {
+	local AOCPawn p;
+
+	if(act != none)
+		p = AOCPawn(act);
+
+	if(p == none && Controller(act) != none)
+		p = AOCPawn(Controller(act).pawn);
+
+	if (p != none && p.PawnInfo.myFamily.FamilyFaction == faction )
 		return true;
 
 	return false;
@@ -179,10 +195,9 @@ event Tick(float DeltaTime) {
 * If there is an NpcTask to complete or in progress returns true
 */
 function bool isBusyWithTask() {
-	if( activeTask != none ) return true;
-	else if( !autoAggro) return false;
-	else if (worldinfo.TimeSeconds - lastTastCheck < taskCheckInterval) return false;
-	else {
+	if (activeTask != none) return true;
+	else if (!autoAggro) return false;
+	else if (StateAllowsSwitchToTask() && worldinfo.TimeSeconds - lastTastCheck > taskCheckInterval) {
 		lastTastCheck = worldinfo.TimeSeconds;
 		activeTask = checkForTask();
 		if( activeTask != none ) {
@@ -191,6 +206,11 @@ function bool isBusyWithTask() {
 		}
 		return false;
 	}
+	else return false;
+}
+
+function bool StateAllowsSwitchToTask() {
+     return true;
 }
 
 function NpcTask checkForTask() {
@@ -256,8 +276,7 @@ function manageCombatTarget(float DeltaTime) {
 function FoundCombatTarget() { }
 function LostCombatTarget() { }
 
-function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, class<DamageType> damageType, vector Momentum)
-{
+function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, class<DamageType> damageType, vector Momentum) {
     local Vector dirToTarget;
     local float targetAngle;
     super.NotifyTakeHit(InstigatedBy, HitLocation, Damage, damageType, Momentum);
@@ -278,14 +297,13 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
     }
 }
 
-state DoingTask
-{
+state DoingTask {
 	event BeginState(Name PreviousStateName) {}
 
 	event EndState(Name NextStateName) {m_Pawn.m_IsSprinting = false;}
 
     function DoTask() {
-		if( NpcTaskAttack(activeTask) != none && taskInReach()) {
+		if (NpcTaskAttack(activeTask) != none && taskInReach()) {
 			activeTask.triggerKismetEvent(self);
 			restrictedAttack = NpcTaskAttack(activeTask).restrictedAttack;
 		    GotoState('Attacking');
@@ -302,12 +320,12 @@ Begin:
 		GotoState('Idle');
 	}
 
+	RotateTo(activeTask.location - m_Pawn.location);
 	// ends the state to do the task when arrived
 	DoTask();
 
     m_Pawn.m_IsSprinting = activeTask.sprint;
-	RotateTo(activeTask.location - m_Pawn.location);
-	MoveToward(activeTask, , activeTask.npcInReach - 150);
+	MoveToward(activeTask, , 150);
 	sleep(0.5);
 goto 'Begin';
 }
@@ -378,23 +396,16 @@ Begin:
     goto 'Begin';
 }
 
-state Combating
-{
-    event BeginState(Name PreviousStateName)
-    {
+state Combating {
+    event BeginState(Name PreviousStateName) {
         m_Pawn.m_IsInCombat = true;
     }
 
-    event EndState(Name NextStateName)
-    {
-    }
+    event EndState(Name NextStateName) {}
 
-    function TurnToTarget(float angle)
-    {
-        if (Abs(angle) > 15)
-        {
-	        RotateTo(
-	            Normal2D(m_CombatTarget.Location - m_Pawn.Location));
+    function TurnToTarget(float angle) {
+        if (Abs(angle) > 15) {
+	        RotateTo(Normal2D(m_CombatTarget.Location - m_Pawn.Location));
         }
     }
 
@@ -407,7 +418,7 @@ state Combating
         global.Tick(DeltaTime);
 
         if (m_CombatTarget != none) {
-            if(Rand(11) < 4 && restrictedAttack == noRestrictedAttack) {
+            if(Rand(11) < 1 && restrictedAttack == noRestrictedAttack) {
             	doAttack = true; // we may need to check cansee taget here
             }
             else {
@@ -429,14 +440,12 @@ state Combating
         }
     }
 
-    function LostCombatTarget()
-    {
+    function LostCombatTarget() {
         GotoState('Idle');
     }
 }
 
-state Chasing
-{
+state Chasing {
     local float dist;
 
     event BeginState(Name PreviousStateName) { }
@@ -466,10 +475,9 @@ Begin:
         RotateTo(
             Normal2D(m_CombatTarget.Location - m_Pawn.Location));
 
-        MoveToward(m_CombatTarget,, m_CombatChaseEndDistance / 2);
+        MoveToward(m_CombatTarget,, m_CombatChaseEndDistance / 3);
 
-        if (dist <= m_CombatChaseEndDistance)
-        {
+        if (dist <= m_CombatChaseEndDistance) {
             GotoState('Combating');
             break;
         }
@@ -520,23 +528,28 @@ state Attacking
 {
     local float returnedCooldown;
 
-    event BeginState(Name PreviousStateName)
-    {
+    event BeginState(Name PreviousStateName) {
         m_HitLockCount++;
     }
 
-    event EndState(Name NextStateName)
-    {
+    event EndState(Name NextStateName) {
         m_HitLockCount--;
         if( !isAttackRestricted )
         	restrictedAttack = noRestrictedAttack;
     }
 
-    function bool BeginAttack(out float Cooldown)
-    {
-        Cooldown = -1;
+    function bool BeginAttack(out float Cooldown) {
+        DecideAttack(Cooldown);
+        PushState('PerformingAttack');
 
         return false;
+    }
+
+	/**
+	* To be overwritten by subclasses to decide on the boss specific attack
+	*/
+    function DecideAttack(out float Cooldown) {
+        Cooldown = -1;
     }
 
 Begin:
@@ -557,6 +570,31 @@ Begin:
         GotoState('Combating');
     else
         GotoState('Idle');
+}
+
+state PerformingAttack {
+    event PushedState() {
+        m_HitLockCount++;
+    }
+
+    event PoppedState() {
+        m_HitLockCount--;
+    }
+
+    function bool StateAllowsSwitchToTask() {
+		return false;
+    }
+
+    function FoundCombatTarget() { }
+
+    function LostCombatTarget() { }
+
+    function PlayAttackAnimation() { }
+
+Begin:
+	PlayAttackAnimation();
+    FinishAnim(m_Pawn.m_CustomAnimSequence);
+    PopState();
 }
 
 function _Dead() {
@@ -620,7 +658,7 @@ defaultproperties
 
 	m_CombatCanAttack = true
 
-	m_CombatChaseEndDistance = 60
+	m_CombatChaseEndDistance = 400
 	m_CombatChaseSprintDistance = 500
 
 	taskCheckInterval = 2.f

@@ -174,9 +174,7 @@ function ApplyAttack_FootKick() {
 
     footDir = Vector(damageSourceRot);
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, FOOT_KICK_DMG_RADIUS)
-    {
-
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, FOOT_KICK_DMG_RADIUS) {
         if (!BossNPC_AIBase(self.Controller).IsValidTarget(pawn))
             continue;
 
@@ -384,6 +382,7 @@ simulated function PlayDying(class<DamageType> DamageType, vector HitLoc) {
     KismetDeathDelayTime = default.KismetDeathDelayTime + WorldInfo.TimeSeconds;
 }
 
+const maxDmg = 50;
 event TakeDamage(
     int Damage,
     Controller InstigatedBy,
@@ -399,11 +398,14 @@ event TakeDamage(
 
     attacker = SandcastlePawn(InstigatedBy.pawn);
 
-    FindNearestBone(HitLocation, BestBone, BestHitLocation);
-	if( BestBone == 'SK_Head' && AOCRangeWeapon(attacker.Weapon) == none) {
-		playHitSound(attacker);
-		displayHitEffects(Momentum, HitLocation);
-		super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
+	if(BossNPC_CyclopeAI(controller).isMason(attacker) && AOCRangeWeapon(attacker.Weapon) == none) {
+		FindNearestBone(HitLocation, BestBone, BestHitLocation);
+		if (BestBone == 'SK_Head') {
+			Damage = damage > maxDmg ? maxDmg : damage;
+			playHitSound(attacker);
+			displayHitEffects(Momentum, HitLocation);
+			super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
+		}
 	}
 }
 

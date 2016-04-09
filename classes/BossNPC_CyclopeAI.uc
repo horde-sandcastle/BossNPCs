@@ -165,31 +165,8 @@ static private function name GetAttackSequenceName(ECyclopeAttack attackID)
     }
 }
 
-state PerformingAttack
-{
-    event PushedState()
-    {
-        m_HitLockCount++;
-        m_Pawn.PlayCustomAnim(GetAttackSequenceName(m_CurrentAttack));
-    }
-
-    event PoppedState()
-    {
-        m_HitLockCount--;
-    }
-
-    function FoundCombatTarget() { }
-
-    function LostCombatTarget() { }
-
-Begin:
-    FinishAnim(m_Pawn.m_CustomAnimSequence);
-    PopState();
-}
-
-state Attacking
-{
-    function bool BeginAttack(out float Cooldown) {
+state Attacking {
+    function DecideAttack(out float Cooldown) {
         local Vector dirToTarget;
         local Vector targetLoc;
         local float dist;
@@ -271,7 +248,7 @@ state Attacking
 	        }
         }
 
-        if( attack == CYCLOPE_ATTACK_SMASH) {
+        if (attack == CYCLOPE_ATTACK_SMASH) {
      	    Cooldown = 0.6;
      	    m_SmashAttackEnabled = false;
         	SetTimer(15.0, false, nameof(ResetAttackDual));
@@ -281,19 +258,18 @@ state Attacking
      	}
 
         m_CurrentAttack = attack;
-
-        PushState('PerformingAttack');
-
-        return true;
     }
 }
 
-state Dying
-{
-    function bool BeginDeathSequence()
-    {
-        m_Pawn.PlayCustomAnim('Die');
+state PerformingAttack {
+    function PlayAttackAnimation() {
+        m_Pawn.PlayCustomAnim(GetAttackSequenceName(m_CurrentAttack));
+    }
+}
 
+state Dying {
+    function bool BeginDeathSequence() {
+        m_Pawn.PlayCustomAnim('Die');
         return true;
     }
 }
@@ -303,7 +279,7 @@ defaultproperties
 	m_SeeRadius = 50000000
 	m_NoticeRadius = 10000000
 
-    m_CombatChaseEndDistance = 350
+    m_CombatChaseEndDistance = 410
     m_CombatChaseSprintDistance = 1000
 
     m_SmashAttackEnabled = true

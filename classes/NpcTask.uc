@@ -12,7 +12,7 @@ var() float npcInReach;
 // should the npc sprint towards this task?
 var() bool sprint;
 
-// set this name to the Kismet NpcTask remote event
+// set this name to the Kismet NpcTask remote event, which is triggered when the npc starts doing the task
 var() string eventName;
 
 // defines when the npc should start doing the task
