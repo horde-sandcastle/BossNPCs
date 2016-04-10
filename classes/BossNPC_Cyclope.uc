@@ -34,6 +34,8 @@ var class<DamageType> defaultDmgCls;
 
 var StaticMeshComponent ballProjComp; // dirtball attached to right hand
 
+var bool debug;
+
 `include(Stocks)
 `include(Log)
 
@@ -73,7 +75,7 @@ function ApplyAttack_Start() {
 * Called by most attacks to apply the damage during the interation through possible targets.
 * Returns if the damage got applied.
 */
-function bool ApplyAttackDamage(Pawn target, optional float baseDamage = 500, optional float radius = 500, optional vector damageSourcePos = vec3(0,0,0), optional float dmgFallOff = 4.0) {
+function bool ApplyAttackDamage(Pawn target, optional float baseDamage = 500, optional float radius = 500, optional vector damageSourcePos = vec3(0,0,0), optional float dmgFallOff = 3.0) {
 	if (!BossNPC_AIBase(self.Controller).IsValidTarget(target) || m_AttackedPawns.ContainsKey(target))
         return false;
 
@@ -90,41 +92,38 @@ function bool ApplyAttackDamage(Pawn target, optional float baseDamage = 500, op
         false,
         self,
         dmgFallOff);
+
+    if(debug) Lognotify("Dmg Scr Dist: "$VSize(damageSourcePos - target.location));
+
+	return true;
 }
 
 
-const SMASH_DMG        = 120.0;
-const SMASH_DMG_RADIUS = 250.0;
-const SMASH_DMG_FORCE  = 400.0;
+const SMASH_DMG        = 600.0;
+const SMASH_DMG_RADIUS =  250.0;
+const SMASH_DMG_FORCE  = 1000.0;
 
 function ApplyAttack_Smash_Impact() {
     local WorldInfo world;
-
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
-
     local Vector forceDir;
-
     local Pawn pawn;
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation(
-        'Smash_Socket',
-        damageSourcePos,
-        damageSourceRot);
+    m_BodyMesh.GetSocketWorldLocationAndRotation('Smash_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, SMASH_DMG_RADIUS) {
 		if(!ApplyAttackDamage(pawn, SMASH_DMG, SMASH_DMG_RADIUS, damageSourcePos)) continue;
 
-        forceDir = Normal(Normal2D(pawn.Location - damageSourcePos) + Vec3(0, 0, 3));
-
-        pawn.SetLocation(pawn.Location + forceDir * Vec3(0, 0, 30));
-
+        forceDir = Normal(Normal2D(pawn.Location - damageSourcePos) + Vec3(0, 0, 10));
         pawn.AddVelocity(
             forceDir * (SMASH_DMG_FORCE * Clamp(1 - VSize(pawn.Location - damageSourcePos) / SMASH_DMG_RADIUS, 0.3, 1.0)),
             damageSourcePos,
             defaultDmgCls);
+
+        SandcastlePawn(pawn).playTumble();
     }
 }
 
@@ -206,15 +205,13 @@ function ApplyAttack_FootKick() {
 }
 
 
-const FORWARD_DMG        = 50.0;
-const FORWARD_DMG_RADIUS = 150.0;
+const FORWARD_DMG        = 350.0;
+const FORWARD_DMG_RADIUS = 300.0;
 
 function ApplyAttack_Forward() {
     local WorldInfo world;
-
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
-
     local Pawn pawn;
 
     world = class'WorldInfo'.static.GetWorldInfo();
@@ -222,12 +219,13 @@ function ApplyAttack_Forward() {
     m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, FORWARD_DMG_RADIUS) {
-       ApplyAttackDamage(pawn, FORWARD_DMG, FORWARD_DMG_RADIUS, damageSourcePos);
+		if(!ApplyAttackDamage(pawn, FORWARD_DMG, FORWARD_DMG_RADIUS, damageSourcePos)) continue;
+		SandcastlePawn(pawn).playTumble();
     }
 }
 
-const FORWARD2_DMG        = 50.0;
-const FORWARD2_DMG_RADIUS = 150.0;
+const FORWARD2_DMG        = 280.0;
+const FORWARD2_DMG_RADIUS = 200.0;
 
 function ApplyAttack_Forward2() {
     local WorldInfo world;
@@ -240,12 +238,12 @@ function ApplyAttack_Forward2() {
     m_BodyMesh.GetSocketWorldLocationAndRotation('Left_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, FORWARD2_DMG_RADIUS) {
-        ApplyAttackDamage(pawn, FORWARD2_DMG, FORWARD2_DMG_RADIUS, damageSourcePos);
+        ApplyAttackDamage(pawn, FORWARD2_DMG, FORWARD2_DMG_RADIUS, damageSourcePos, 1);
     }
 }
 
-const LEFT_RIGHT_DMG        = 50.0;
-const LEFT_RIGHT_DMG_RADIUS = 250.0;
+const LEFT_RIGHT_DMG        = 300.0;
+const LEFT_RIGHT_DMG_RADIUS = 300.0;
 
 function ApplyAttack_Left() {
     local WorldInfo world;
@@ -277,8 +275,8 @@ function ApplyAttack_Right() {
     }
 }
 
-const SIDE_LEFT_RIGHT_DMG        = 30.0;
-const SIDE_LEFT_RIGHT_DMG_RADIUS = 250.0;
+const SIDE_LEFT_RIGHT_DMG        = 300.0;
+const SIDE_LEFT_RIGHT_DMG_RADIUS = 300.0;
 
 function ApplyAttack_Side_Left() {
     local WorldInfo world;
@@ -350,8 +348,9 @@ function Released() {
     SpawnProjectile(ballPos, targetLoc);
 }
 
-const PROJ_DMG = 400.0;
+const PROJ_DMG = 300.0;
 const PROJ_SPEED = 1550.0;
+const PROJ_DMG_RADIUS = 400;
 
 simulated function SpawnProjectile( Vector startLoc, vector targetLoc ) {
 	local Projectile SpawnedProjectile;
@@ -367,6 +366,7 @@ simulated function SpawnProjectile( Vector startLoc, vector targetLoc ) {
 		AOCProjectile(SpawnedProjectile).Speed = PROJ_SPEED;
 		AOCProjectile(SpawnedProjectile).MaxSpeed = PROJ_SPEED;
 		AOCProjectile(SpawnedProjectile).PrevLocation = startLoc;
+		AOCProjectile(SpawnedProjectile).DamageRadius = PROJ_DMG_RADIUS;
 		AOCProjectile(SpawnedProjectile).AOCInit(Aim);
 	}
 }
@@ -639,4 +639,6 @@ defaultproperties
     m_Cues_Threat = SoundCue'BossNPCs_Content.Cyclope.Sounds.cyclope_threat_Cue'
     m_Cues_Victory = SoundCue'BossNPCs_Content.Cyclope.Sounds.cyclope_victory_Cue'
     m_Cues_Whoosh = SoundCue'BossNPCs_Content.Cyclope.Sounds.cyclope_whoosh_Cue'
+
+    debug = false
 }

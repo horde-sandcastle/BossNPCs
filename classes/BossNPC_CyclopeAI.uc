@@ -1,7 +1,6 @@
 class BossNPC_CyclopeAI extends BossNPC_AIBase;
 
-enum ECyclopeAttack
-{
+enum ECyclopeAttack {
 	CYCLOPE_ATTACK_SMASH,
 
 	CYCLOPE_ATTACK_FOOT_CRUSH,
@@ -19,10 +18,17 @@ enum ECyclopeAttack
     CYCLOPE_ATTACK_THROW_GROUND
 };
 
+struct AttackToDist {
+	var ECyclopeAttack Attack;
+	var float Dist;
+};
+
 var name m_CurrentTurnSeqName;
 
 var bool           m_SmashAttackEnabled;
 var ECyclopeAttack m_CurrentAttack;
+
+var bool debug;
 
 `include(Stocks)
 `include(Log)
@@ -172,7 +178,8 @@ state Attacking {
         local float dist;
         local float targetAngle;
         local ECyclopeAttack attack;
-        local int rr;
+
+        Cooldown = 0.8;
 
         if( activeTask != none )
             targetLoc = activeTask.location;
@@ -186,78 +193,112 @@ state Attacking {
         if (dist > m_CombatChaseEndDistance) {
 			attack = CYCLOPE_ATTACK_THROW_GROUND;
         }
-        else if( restrictedAttack != noRestrictedAttack ) {
+        else if (restrictedAttack != noRestrictedAttack) {
          	attack = ECyclopeAttack(restrictedAttack);
         }
         else {
-	        if (m_SmashAttackEnabled && targetAngle > 0.7  && dist >= 260) {
-	            attack = CYCLOPE_ATTACK_SMASH;
-	        }
-	        else {
-	            targetAngle = Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776;
-
-	            if (Abs(targetAngle) <= 45)
-	            {
-	                rr = Rand(11);
-
-	                if (rr < 3)
-	                {
-	                    attack = CYCLOPE_ATTACK_FOOT_CRUSH;
-	                }
-	                else
-	                if (rr < 5)
-	                {
-	                    attack = CYCLOPE_ATTACK_FOOT_KICK;
-	                }
-	                else
-	                if (rr < 7)
-	                {
-	                    attack = CYCLOPE_ATTACK_FORWARD;
-	                }
-	                else
-	                {
-	                    attack = CYCLOPE_ATTACK_FORWARD_2;
-	                }
-	            }
-	            else
-	            {
-			        if (targetAngle < -45)
-			        {
-		                if (targetAngle < -75)
-		                {
-	                        attack = CYCLOPE_ATTACK_LEFT;
-		                }
-		                else
-		                {
-	                        attack = CYCLOPE_ATTACK_SIDE_LEFT;
-		                }
-			        }
-			        else
-			        if (targetAngle > +45)
-			        {
-	                    if (targetAngle > +75)
-	                    {
-	                        attack = CYCLOPE_ATTACK_RIGHT;
-	                    }
-	                    else
-	                    {
-	                        attack = CYCLOPE_ATTACK_SIDE_RIGHT;
-	                    }
-			        }
-	            }
-	        }
+            targetAngle = Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776;
+            if(debug) Lognotify("Attack Dist: "$dist$", angle: "$targetAngle);
+            attack = getSideAttack(targetAngle);
+            if (attack == -1) {
+                attack = getAttackForDist(dist);
+                if (attack == CYCLOPE_ATTACK_SMASH) {
+		     	    Cooldown = 0.6;
+		     	    m_SmashAttackEnabled = false;
+		        	SetTimer(15.0, false, nameof(ResetAttackDual));
+		     	}
+            }
         }
 
-        if (attack == CYCLOPE_ATTACK_SMASH) {
-     	    Cooldown = 0.6;
-     	    m_SmashAttackEnabled = false;
-        	SetTimer(15.0, false, nameof(ResetAttackDual));
-     	}
-     	else {
-     	    Cooldown = 0.8;
-     	}
+        m_CurrentAttack = CYCLOPE_ATTACK_FORWARD_2; //attack;
+    }
 
-        m_CurrentAttack = attack;
+    function ECyclopeAttack getSideAttack(float targetAngle) {
+        local ECyclopeAttack attack;
+
+        if (Abs(targetAngle) <= 45) {
+         	return -1; // target is infront
+        }
+
+        if (targetAngle < -45) {
+            if (targetAngle < -75) {
+                attack = CYCLOPE_ATTACK_LEFT;
+            }
+            else {
+                attack = CYCLOPE_ATTACK_SIDE_LEFT;
+            }
+        }
+        else if (targetAngle > +45) {
+            if (targetAngle > +75) {
+                attack = CYCLOPE_ATTACK_RIGHT;
+            }
+            else {
+                attack = CYCLOPE_ATTACK_SIDE_RIGHT;
+            }
+        }
+
+        return attack;
+    }
+
+
+	// minimal attack distances, if the target is farther away the attack is filtered
+	// if the min distances are equal for several attacks, they are used interchangeably based on randomness
+    const FOOT_CRUSH_MIN_DIST = 0;
+    const FOOT_KICK_MIN_DIST = 0;
+    const FORWARD_MIN_DIST = 290; // most lethal at 420
+    const FORWARD_2_MIN_DIST = 290; // most lethal at 470
+    const SMASH_MIN_DIST = 390; // most lethal at 400 to 500
+
+    /**
+    * Returns all forward attacks filtered by the target-distance.
+    */
+    function ECyclopeAttack getAttackForDist(float dist) {
+        local array<AttackToDist> filteredAttacks;
+        local array<ECyclopeAttack> attacks;
+
+		filteredAttacks = getFilteredAttackInfos(dist);
+		attacks = getLongestRangeAttcksOfEqualDist(filteredAttacks);
+
+        return attacks[Rand(attacks.length)];
+    }
+
+    function array<AttackToDist> getFilteredAttackInfos(float dist) {
+        local array<AttackToDist> filteredAttacks;
+        local AttackToDist attack;
+
+     	attack.Dist = FOOT_CRUSH_MIN_DIST;
+		attack.Attack = CYCLOPE_ATTACK_FOOT_CRUSH;
+		if (attack.Dist < dist) filteredAttacks.AddItem(attack);
+        attack.Dist = FOOT_KICK_MIN_DIST;
+		attack.Attack = CYCLOPE_ATTACK_FOOT_KICK;
+        if (attack.Dist < dist) filteredAttacks.AddItem(attack);
+        attack.Dist = FORWARD_MIN_DIST;
+		attack.Attack = CYCLOPE_ATTACK_FORWARD;
+        if (attack.Dist < dist) filteredAttacks.AddItem(attack);
+        attack.Dist = FORWARD_2_MIN_DIST;
+		attack.Attack = CYCLOPE_ATTACK_FORWARD_2;
+        if (attack.Dist < dist) filteredAttacks.AddItem(attack);
+        attack.Dist = SMASH_MIN_DIST;
+		attack.Attack = CYCLOPE_ATTACK_SMASH;
+        if (attack.Dist < dist) filteredAttacks.AddItem(attack);
+
+        return filteredAttacks;
+    }
+
+    function array<ECyclopeAttack> getLongestRangeAttcksOfEqualDist(array<AttackToDist> filteredAttacks) {
+        local array<ECyclopeAttack> attacks;
+        local AttackToDist attack;
+        local float lastDist;
+
+		foreach filteredAttacks(attack) {
+			if(lastDist < attack.Dist) {
+				attacks.length = 0;
+				lastDist = attack.Dist;
+			}
+			attacks.addItem(attack.Attack);
+        }
+
+        return attacks;
     }
 }
 
@@ -279,8 +320,10 @@ defaultproperties
 	m_SeeRadius = 50000000
 	m_NoticeRadius = 10000000
 
-    m_CombatChaseEndDistance = 410
+    m_CombatChaseEndDistance = 600
     m_CombatChaseSprintDistance = 1000
 
     m_SmashAttackEnabled = true
+
+    debug = false
 }
