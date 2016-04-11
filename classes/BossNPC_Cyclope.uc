@@ -100,14 +100,12 @@ function bool ApplyAttackDamage(Pawn target, optional float baseDamage = 500, op
 
 
 const SMASH_DMG        = 600.0;
-const SMASH_DMG_RADIUS =  250.0;
-const SMASH_DMG_FORCE  = 1000.0;
+const SMASH_DMG_RADIUS =  300.0;
 
 function ApplyAttack_Smash_Impact() {
     local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
-    local Vector forceDir;
     local Pawn pawn;
 
     world = class'WorldInfo'.static.GetWorldInfo();
@@ -116,12 +114,6 @@ function ApplyAttack_Smash_Impact() {
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, SMASH_DMG_RADIUS) {
 		if(!ApplyAttackDamage(pawn, SMASH_DMG, SMASH_DMG_RADIUS, damageSourcePos)) continue;
-
-        forceDir = Normal(Normal2D(pawn.Location - damageSourcePos) + Vec3(0, 0, 10));
-        pawn.AddVelocity(
-            forceDir * (SMASH_DMG_FORCE * Clamp(1 - VSize(pawn.Location - damageSourcePos) / SMASH_DMG_RADIUS, 0.3, 1.0)),
-            damageSourcePos,
-            defaultDmgCls);
 
         SandcastlePawn(pawn).playTumble();
     }
@@ -312,7 +304,7 @@ function ApplyAttack_Side_Right() {
 * Spawn a dirtball in the right hand because the cyclops currently grabs the ground
 * Called from the animation.
 */
-function Grabbed() {
+simulated function Grabbed() {
     local Vector ballPos;
     local Rotator ballRot;
 
@@ -334,29 +326,30 @@ function Grabbed() {
 * Spawn a dirtball-projectile at the right hand to throw
 * Called from the animation.
 */
-function Released() {
+simulated function Released() {
     local Vector ballPos;
     local Rotator ballRot;
     local vector targetLoc;
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', ballPos, ballRot);
-
 	ballProjComp.detachFromAny();
 	ballProjComp = none;
 
-	targetLoc = BossNPC_CyclopeAI(controller).m_CombatTarget.location;
-    SpawnProjectile(ballPos, targetLoc);
+	if(Role == Role_Authority) {
+		m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', ballPos, ballRot);
+		targetLoc = BossNPC_CyclopeAI(controller).m_CombatTarget.location;
+	    SpawnProjectile(ballPos, targetLoc);
+	}
 }
 
 const PROJ_DMG = 300.0;
 const PROJ_SPEED = 1550.0;
 const PROJ_DMG_RADIUS = 400;
 
-simulated function SpawnProjectile( Vector startLoc, vector targetLoc ) {
+function SpawnProjectile( Vector startLoc, vector targetLoc ) {
 	local Projectile SpawnedProjectile;
 	local Rotator aim;
 
-	aim = Rotator(targetLoc - startLoc);
+	aim = Rotator(targetLoc - vec3(0,0,34) - startLoc);
 	SpawnedProjectile = Spawn(class'Proj_Rock',self,, startLoc, aim);
 
 	if ( SpawnedProjectile != None ) {
