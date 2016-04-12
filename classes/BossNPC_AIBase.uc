@@ -32,7 +32,7 @@ var float m_NextHitDelay;
 
 var int   m_HitLockCount;
 
-var bool  m_Dead;
+var bool m_Dead;
 
 var NpcTask activeTask;
 var array<NpcTask> allTasks;
@@ -44,8 +44,6 @@ var const byte noRestrictedAttack;
 var() bool autoAggro;
 // default: false, if true the nearest enemy pawns is picked as a new target instead of visible pawns
 var() bool perfectEnemyKnowledge;
-
-var ParticleSystemComponent deathDust;
 
 `include(Stocks)
 `include(Log)
@@ -597,54 +595,13 @@ Begin:
     PopState();
 }
 
-function _Dead() {
-	deathDust.deactivateSystem();
-	m_Pawn.Destroy();
+simulated function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) {
+    m_Dead = true;
+    SetTimer(6.0, false, '_Dead');
+}
 
+simulated function _Dead() {
     self.Destroy();
-}
-
-function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) {
-    GotoState('Dying',, false, false);
-}
-
-state Dying {
-    event BeginState(Name PreviousStateName) {
-        m_Dead = true;
-        SetTimer(6.0, false, '_Dead');
-    }
-
-    event EndState(Name NextStateName)
-    {
-    }
-
-    function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) { }
-
-    function bool BeginDeathSequence() {
-        return false;
-    }
-
-    function pawnFadeOut() {
-        local Vector centerPos;
-    	local Rotator cyclopsRot;
-
-	    m_Pawn.m_BodyMesh.GetSocketWorldLocationAndRotation('Smash_Socket', centerPos, cyclopsRot);
-	    deathDust = WorldInfo.MyEmitterPool.SpawnEmitter(ParticleSystem'CHV_PartiPack.Particles.P_smokepot',centerPos);
-	    deathDust.setscale( 5 );
-    }
-
-Begin:
-
-    if (BeginDeathSequence()) {
-        pawnFadeOut();
-        FinishAnim(m_Pawn.m_CustomAnimSequence);
-        m_Pawn.m_CustomAnimSequence.stopAnim();
-        AnimTree(m_Pawn.mesh.Animations).SetUseSavedPose(TRUE);
-		m_Pawn.Mesh.PhysicsWeight = 999.0;
-		m_pawn.SetPhysics(PHYS_None);
-    }
-
-    //m_Pawn.InitRagdoll(); <-- not working too well, makes cyclops deflate like a baloon
 }
 
 defaultproperties

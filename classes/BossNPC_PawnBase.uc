@@ -26,13 +26,17 @@ var SoundCue m_FarFootStepSounds;
 var private int m_FootStep;
 var private int m_FarFootStep;
 
+var repnotify bool m_dying;
+var bool m_rotateToGround;
+var ParticleSystemComponent deathDust;
+
 `include(Stocks)
 `include(Log)
 
 replication
 {
 	if (bNetDirty && Role == ROLE_Authority)
-		m_Speed, m_IsSprinting, m_SprintSpeed, m_IsInCombat, m_CustomAnimSeqName, m_CustomAnimSeqPlayID;
+		m_Speed, m_IsSprinting, m_SprintSpeed, m_IsInCombat, m_CustomAnimSeqName, m_CustomAnimSeqPlayID, m_dying;
 }
 
 simulated event PostInitAnimTree(SkeletalMeshComponent SkelComp) {
@@ -49,6 +53,9 @@ simulated event ReplicatedEvent(name VarName)
 	{
 		self.PlayCustomAnim(m_CustomAnimSeqName);
 	}
+	else if(VarName == 'm_dying') {
+		GotoState('Dying');
+	}
 
     super.ReplicatedEvent(VarName);
 }
@@ -62,7 +69,7 @@ simulated event Tick(float DeltaTime) {
 	local float speed;
 	local Rotator newRotation;
 
-	if(BossNPC_AIBase(self.Controller).m_Dead) {
+	if(m_rotateToGround) {
 		self.AirSpeed    = 0;
     	self.GroundSpeed = 0;
     	velocity = vec3(0,0,0);
@@ -130,11 +137,41 @@ simulated event PlayFootStepSound(int FootDown)
 
 function gibbedBy(actor Other) { }
 
-function bool Died(Controller Killer, class<DamageType> DamageType, vector HitLocation)
-{
+simulated function bool Died(Controller Killer, class<DamageType> DamageType, vector HitLocation) {
 	BossNPC_AIBase(self.Controller).PawnDiedEvent(Killer, DamageType);
+	GotoState('Dying');
 
 	return true;
+}
+
+simulated function _Dead() {
+	deathDust.deactivateSystem();
+    self.Destroy();
+}
+
+simulated state Dying {
+
+	simulated function pawnFadeOut() {
+	    local Vector BoneLoc;
+
+		BoneLoc = m_BodyMesh.GetBoneLocation('joint7');
+	    deathDust = WorldInfo.MyEmitterPool.SpawnEmitter(ParticleSystem'CHV_PartiPack.Particles.P_smokepot',BoneLoc - vec3(0,0,250));
+	    deathDust.setscale( 2 );
+	}
+
+Begin:
+	m_dying = true;
+	SetTimer(6.0, false, '_Dead');
+	pawnFadeOut();
+    PlayCustomAnim('Die');
+	FinishAnim(m_CustomAnimSequence);
+	m_rotateToGround = true;
+    m_CustomAnimSequence.stopAnim();
+    AnimTree(mesh.Animations).SetUseSavedPose(TRUE);
+	Mesh.PhysicsWeight = 999.0;
+	SetPhysics(PHYS_None);
+
+    //InitRagdoll(); <-- not working too well, makes cyclops deflate like a baloon
 }
 
 function playHitSound(AocPawn InstigatedBy) {

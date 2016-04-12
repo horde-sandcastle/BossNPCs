@@ -308,13 +308,6 @@ state PerformingAttack {
     }
 }
 
-state Dying {
-    function bool BeginDeathSequence() {
-        m_Pawn.PlayCustomAnim('Die');
-        return true;
-    }
-}
-
 defaultproperties
 {
 	m_SeeRadius = 50000000

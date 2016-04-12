@@ -364,17 +364,6 @@ function SpawnProjectile( Vector startLoc, vector targetLoc ) {
 	}
 }
 
-simulated function PlayDying(class<DamageType> DamageType, vector HitLoc) {
-    GotoState('Dying');
-    bReplicateMovement = false;
-    bTearOff = true;
-    Velocity += TearOffMomentum;
-    //SetDyingPhysics();
-    bPlayedDeath = true;
-
-    KismetDeathDelayTime = default.KismetDeathDelayTime + WorldInfo.TimeSeconds;
-}
-
 const maxDmg = 50;
 event TakeDamage(
     int Damage,
