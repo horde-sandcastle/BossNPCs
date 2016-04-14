@@ -1,5 +1,18 @@
 class BossNPC_PawnBase extends Pawn implements (IBossNpcPawn);
 
+var struct BossNpcAttackInfo {
+	var byte 				ID;
+	var float				BaseDamage;
+	var float				DamageRadius;
+	var class<DamageType>	DamageType;
+	var float				Momentum;
+	var bool				bFullDamage;
+	var float      			DamageFalloffExponent;
+	var bool				playTumble;
+} BossNpcAttackInfoTmp;
+
+var array<BossNpcAttackInfo> BossNpcAttackInfos;
+
 var PrivateWrite SkeletalMeshComponent 		      m_BodyMesh;
 var PrivateWrite DynamicLightEnvironmentComponent m_MeshLighEnv;
 
@@ -32,6 +45,13 @@ var ParticleSystemComponent deathDust;
 
 `include(Stocks)
 `include(Log)
+`include(PawnUtils)
+`include(bossNpcAttacks)
+
+simulated function postBeginPlay() {
+	super.postBeginPlay();
+	initBossNpcAttackInfos();
+}
 
 replication
 {
@@ -47,10 +67,8 @@ simulated event PostInitAnimTree(SkeletalMeshComponent SkelComp) {
     m_CustomAnimSequence.bCauseActorAnimEnd = true;
 }
 
-simulated event ReplicatedEvent(name VarName)
-{
-	if (VarName == 'm_CustomAnimSeqPlayID')
-	{
+simulated event ReplicatedEvent(name VarName) {
+	if (VarName == 'm_CustomAnimSeqPlayID') {
 		self.PlayCustomAnim(m_CustomAnimSeqName);
 	}
 	else if(VarName == 'm_dying') {
@@ -60,8 +78,7 @@ simulated event ReplicatedEvent(name VarName)
     super.ReplicatedEvent(VarName);
 }
 
-simulated function float GetMoveSpeed()
-{
+simulated function float GetMoveSpeed() {
 	return m_IsSprinting ? m_SprintSpeed : (m_IsInCombat ? m_CombatSpeed : m_Speed);
 }
 

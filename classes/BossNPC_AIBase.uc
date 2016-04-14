@@ -47,6 +47,7 @@ var() bool perfectEnemyKnowledge;
 
 `include(Stocks)
 `include(Log)
+`include(PawnUtils)
 
 event Possess(Pawn inPawn, bool bVehicleTransition) {
 	super.Possess(inPawn, bVehicleTransition);
@@ -63,49 +64,10 @@ function RotateTo(Vector Dir) {
     m_Pawn.SetDesiredRotation(Rotator(Dir));
 }
 
-function bool IsValidTarget(Pawn targetPawn) {
-    if (targetPawn == m_Pawn)
-        return false;
-
-    if(isAgatha(targetPawn))
-        return false;
-
-    if (targetPawn.bTearOff || targetPawn.Health <= 0)
-        return false;
-
-    if (AOCPawn(targetPawn) != none && AOCPawn(targetPawn).bPawnIsDead)
-        return false;
-
-    return true;
-}
-
-function bool isAgatha(Actor act) {
-	return testFamilyFaction(act, EFAC_AGATHA);
-}
-
-function bool isMason(Actor act) {
-	return testFamilyFaction(act, EFAC_MASON);
-}
-
-function bool testFamilyFaction(Actor act, EAOCFaction faction) {
-	local AOCPawn p;
-
-	if(act != none)
-		p = AOCPawn(act);
-
-	if(p == none && Controller(act) != none)
-		p = AOCPawn(Controller(act).pawn);
-
-	if (p != none && p.PawnInfo.myFamily.FamilyFaction == faction )
-		return true;
-
-	return false;
-}
-
 function bool IsValidCombatTarget(Pawn targetPawn, bool noticeOnly) {
 	local float dist;
 
-	if (!self.IsValidTarget(targetPawn))
+	if (!IsValidTarget(targetPawn, m_pawn))
 		return false;
 
 	dist = VSize(targetPawn.Location - m_Pawn.Location);

@@ -3,8 +3,7 @@
 * The 'ApplyAttack_' functions are called from the animationSet.
 */
 class BossNPC_Cyclope extends BossNPC_PawnBase
-    implements(HUD_OverheadExtIFace)
-    dependson(ICyclopsAttackable);
+    implements(HUD_OverheadExtIFace);
 
 var SoundCue m_Cues_Breathing;
 var SoundCue m_Cues_DieImpaled;
@@ -30,14 +29,13 @@ var float m_BreathDelay;
 var Dict  m_AttackedPawns;
 var bool appliedKick;
 
-var class<DamageType> defaultDmgCls;
-
 var StaticMeshComponent ballProjComp; // dirtball attached to right hand
 
 var bool debug;
 
 `include(Stocks)
 `include(Log)
+`include(PawnUtils)
 
 simulated function float HUD_Overhead_GetHealthBarSizeScale() { return 1.5; }
 simulated function float HUD_Overhead_GetHealthBarAdditionalZOffset() { return 180; }
@@ -67,7 +65,7 @@ simulated event Tick(float DeltaTime) {
     }
 }
 
-function ApplyAttack_Start() {
+simulated function ApplyAttack_Start() {
 	m_AttackedPawns.Clear();
 }
 
@@ -75,34 +73,24 @@ function ApplyAttack_Start() {
 * Called by most attacks to apply the damage during the interation through possible targets.
 * Returns if the damage got applied.
 */
-function bool ApplyAttackDamage(Pawn target, optional float baseDamage = 500, optional float radius = 500, optional vector damageSourcePos = vec3(0,0,0), optional float dmgFallOff = 3.0) {
-	if (!BossNPC_AIBase(self.Controller).IsValidTarget(target) || m_AttackedPawns.ContainsKey(target))
-        return false;
+simulated function bool AttackPawn(Pawn target, byte attackType, vector damageSourcePos) {
+	if (!IsValidTarget(target, self) || m_AttackedPawns.ContainsKey(target) || getALocalPlayerController().pawn != target) {
+		return false;
+	}
 
     m_AttackedPawns.Add(target, target);
-
 	AOCPawn(target).ReplicatedHitInfo.DamageString = "&";
-    target.TakeRadiusDamage(
-        self.Controller,
-        baseDamage,
-        radius,
-        defaultDmgCls,
-        0,
-        damageSourcePos,
-        false,
-        self,
-        dmgFallOff);
+	SandcastlePawn(target).AttackedByBossNpc(attackType, damageSourcePos, self);
+
+	if(BossNpcAttackInfos[attackType].playTumble)
+		SandcastlePawn(target).playTumble();
 
     if(debug) Lognotify("Dmg Scr Dist: "$VSize(damageSourcePos - target.location));
 
 	return true;
 }
 
-
-const SMASH_DMG        = 600.0;
-const SMASH_DMG_RADIUS =  300.0;
-
-function ApplyAttack_Smash_Impact() {
+simulated function ApplyAttack_Smash_Impact() {
     local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
@@ -112,17 +100,12 @@ function ApplyAttack_Smash_Impact() {
 
     m_BodyMesh.GetSocketWorldLocationAndRotation('Smash_Socket', damageSourcePos, damageSourceRot);
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, SMASH_DMG_RADIUS) {
-		if(!ApplyAttackDamage(pawn, SMASH_DMG, SMASH_DMG_RADIUS, damageSourcePos)) continue;
-
-        SandcastlePawn(pawn).playTumble();
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_SMASH].DamageRadius) {
+		AttackPawn(pawn, CYCLOPE_ATTACK_SMASH, damageSourcePos);
     }
 }
 
-const FOOT_CRUSH_DMG        = 500.0;
-const FOOT_CRUSH_DMG_RADIUS = 500.0;
-
-function ApplyAttack_FootCrush() {
+simulated function ApplyAttack_FootCrush() {
 	local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
@@ -132,23 +115,12 @@ function ApplyAttack_FootCrush() {
 
     m_BodyMesh.GetSocketWorldLocationAndRotation('FootCrush_Socket', damageSourcePos, damageSourceRot);
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, FOOT_CRUSH_DMG_RADIUS) {
-        if(!ApplyAttackDamage(pawn, FOOT_CRUSH_DMG, FOOT_CRUSH_DMG_RADIUS, damageSourcePos)) continue;
-
-        SandcastlePawn(pawn).playTumble();
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_CRUSH].DamageRadius) {
+        AttackPawn(pawn, CYCLOPE_ATTACK_FOOT_CRUSH, damageSourcePos);
     }
 }
 
-const FOOT_KICK_DMG        = 40.0;
-const FOOT_KICK_DMG_RADIUS = 400.0;
-const FOOT_KICK_DMG_FORCE  = 400.0;
-
-/**
-* TODO: the actual effect (damage and physics) are implemented in the SandcastlePC via ICyclopsAttackable (due to function replication).
-* So part of the following logic is to be replaced by it.
-*
-*/
-function ApplyAttack_FootKick() {
+simulated function ApplyAttack_FootKick() {
     local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
@@ -158,49 +130,23 @@ function ApplyAttack_FootKick() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation(
-        'FootKick_Socket',
-        damageSourcePos,
-        damageSourceRot);
+    m_BodyMesh.GetSocketWorldLocationAndRotation('FootKick_Socket', damageSourcePos, damageSourceRot);
 
-    footDir = Vector(damageSourceRot);
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_KICK].DamageRadius) {
+		if(!AttackPawn(pawn, CYCLOPE_ATTACK_FOOT_KICK, damageSourcePos)) continue;
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, FOOT_KICK_DMG_RADIUS) {
-        if (!BossNPC_AIBase(self.Controller).IsValidTarget(pawn))
-            continue;
-
-        if (m_AttackedPawns.ContainsKey(pawn))
-            continue;
-
-        m_AttackedPawns.Add(pawn, pawn);
-
-		AOCPawn(pawn).ReplicatedHitInfo.DamageString = "&";
-        pawn.TakeRadiusDamage(
-            self.Controller,
-            FOOT_KICK_DMG,
-            FOOT_KICK_DMG_RADIUS,
-            defaultDmgCls,
-            0,
-            damageSourcePos,
-            true,
-            self);
-
-        forceDir = Normal(Normal2D(footDir) + Vec3(0, 0, 3));
-
-        pawn.SetLocation(pawn.Location + forceDir * Vec3(0, 0, 30));
-
-        pawn.AddVelocity(
-            forceDir * FOOT_KICK_DMG_FORCE,
-            damageSourcePos,
-            defaultDmgCls);
+		if(pawn.health < BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_KICK].BaseDamage + 20) {
+			SandcastlePawn(pawn).cyclopsKick(location);
+		}
+		else {
+			footDir = Vector(damageSourceRot);
+			forceDir = Normal(Normal2D(footDir) + Vec3(0, 0, 3));
+			SandcastlePawn(pawn).cyclopsKickSmall(forceDir, damageSourcePos);
+		}
     }
 }
 
-
-const FORWARD_DMG        = 350.0;
-const FORWARD_DMG_RADIUS = 300.0;
-
-function ApplyAttack_Forward() {
+simulated function ApplyAttack_Forward() {
     local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
@@ -210,16 +156,12 @@ function ApplyAttack_Forward() {
 
     m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', damageSourcePos, damageSourceRot);
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, FORWARD_DMG_RADIUS) {
-		if(!ApplyAttackDamage(pawn, FORWARD_DMG, FORWARD_DMG_RADIUS, damageSourcePos)) continue;
-		SandcastlePawn(pawn).playTumble();
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_FORWARD].DamageRadius) {
+		AttackPawn(pawn, CYCLOPE_ATTACK_FORWARD, damageSourcePos);
     }
 }
 
-const FORWARD2_DMG        = 280.0;
-const FORWARD2_DMG_RADIUS = 200.0;
-
-function ApplyAttack_Forward2() {
+simulated function ApplyAttack_Forward2() {
     local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
@@ -229,15 +171,12 @@ function ApplyAttack_Forward2() {
 
     m_BodyMesh.GetSocketWorldLocationAndRotation('Left_Socket', damageSourcePos, damageSourceRot);
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, FORWARD2_DMG_RADIUS) {
-        ApplyAttackDamage(pawn, FORWARD2_DMG, FORWARD2_DMG_RADIUS, damageSourcePos, 1);
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_FORWARD_2].DamageRadius) {
+        AttackPawn(pawn, CYCLOPE_ATTACK_FORWARD_2, damageSourcePos);
     }
 }
 
-const LEFT_RIGHT_DMG        = 300.0;
-const LEFT_RIGHT_DMG_RADIUS = 300.0;
-
-function ApplyAttack_Left() {
+simulated function ApplyAttack_Left() {
     local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
@@ -247,12 +186,12 @@ function ApplyAttack_Left() {
 
     m_BodyMesh.GetSocketWorldLocationAndRotation('Left_Socket', damageSourcePos, damageSourceRot);
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, LEFT_RIGHT_DMG_RADIUS) {
-        ApplyAttackDamage(pawn, LEFT_RIGHT_DMG, LEFT_RIGHT_DMG_RADIUS, damageSourcePos);
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_LEFT].DamageRadius) {
+        AttackPawn(pawn, CYCLOPE_ATTACK_LEFT, damageSourcePos);
     }
 }
 
-function ApplyAttack_Right() {
+simulated function ApplyAttack_Right() {
     local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
@@ -262,15 +201,12 @@ function ApplyAttack_Right() {
 
     m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', damageSourcePos, damageSourceRot);
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, LEFT_RIGHT_DMG_RADIUS) {
-         ApplyAttackDamage(pawn, LEFT_RIGHT_DMG, LEFT_RIGHT_DMG_RADIUS, damageSourcePos);
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_RIGHT].DamageRadius) {
+         AttackPawn(pawn, CYCLOPE_ATTACK_RIGHT, damageSourcePos);
     }
 }
 
-const SIDE_LEFT_RIGHT_DMG        = 300.0;
-const SIDE_LEFT_RIGHT_DMG_RADIUS = 300.0;
-
-function ApplyAttack_Side_Left() {
+simulated function ApplyAttack_Side_Left() {
     local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
@@ -280,12 +216,12 @@ function ApplyAttack_Side_Left() {
 
     m_BodyMesh.GetSocketWorldLocationAndRotation( 'Left_Socket', damageSourcePos, damageSourceRot);
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, SIDE_LEFT_RIGHT_DMG_RADIUS) {
-         ApplyAttackDamage(pawn, SIDE_LEFT_RIGHT_DMG, SIDE_LEFT_RIGHT_DMG_RADIUS, damageSourcePos);
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_SIDE_LEFT].DamageRadius) {
+         AttackPawn(pawn, CYCLOPE_ATTACK_SIDE_LEFT, damageSourcePos);
     }
 }
 
-function ApplyAttack_Side_Right() {
+simulated function ApplyAttack_Side_Right() {
     local WorldInfo world;
     local Vector damageSourcePos;
     local Rotator damageSourceRot;
@@ -295,8 +231,8 @@ function ApplyAttack_Side_Right() {
 
     m_BodyMesh.GetSocketWorldLocationAndRotation( 'Right_Socket', damageSourcePos, damageSourceRot);
 
-    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, SIDE_LEFT_RIGHT_DMG_RADIUS) {
-        ApplyAttackDamage(pawn, SIDE_LEFT_RIGHT_DMG, SIDE_LEFT_RIGHT_DMG_RADIUS, damageSourcePos);
+    foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_SIDE_RIGHT].DamageRadius) {
+        AttackPawn(pawn, CYCLOPE_ATTACK_SIDE_RIGHT, damageSourcePos);
     }
 }
 
@@ -341,9 +277,7 @@ simulated function Released() {
 	}
 }
 
-const PROJ_DMG = 300.0;
 const PROJ_SPEED = 1550.0;
-const PROJ_DMG_RADIUS = 400;
 
 function SpawnProjectile( Vector startLoc, vector targetLoc ) {
 	local Projectile SpawnedProjectile;
@@ -354,18 +288,19 @@ function SpawnProjectile( Vector startLoc, vector targetLoc ) {
 
 	if ( SpawnedProjectile != None ) {
 		AOCProjectile(SpawnedProjectile).Drag = 0;
-		AOCProjectile(SpawnedProjectile).Damage = PROJ_DMG;
+		AOCProjectile(SpawnedProjectile).Damage = BossNpcAttackInfos[CYCLOPE_ATTACK_SIDE_RIGHT].BaseDamage;
 		Proj_Rock(SpawnedProjectile).Mesh.setScale( 1.1 );
 		AOCProjectile(SpawnedProjectile).Speed = PROJ_SPEED;
 		AOCProjectile(SpawnedProjectile).MaxSpeed = PROJ_SPEED;
 		AOCProjectile(SpawnedProjectile).PrevLocation = startLoc;
-		AOCProjectile(SpawnedProjectile).DamageRadius = PROJ_DMG_RADIUS;
+		AOCProjectile(SpawnedProjectile).DamageRadius = BossNpcAttackInfos[CYCLOPE_ATTACK_SIDE_RIGHT].DamageRadius;
 		AOCProjectile(SpawnedProjectile).AOCInit(Aim);
 	}
 }
 
 const maxDmg = 50;
-event TakeDamage(
+
+simulated event TakeDamage(
     int Damage,
     Controller InstigatedBy,
     vector HitLocation,
@@ -380,7 +315,7 @@ event TakeDamage(
 
     attacker = SandcastlePawn(InstigatedBy.pawn);
 
-	if(BossNPC_CyclopeAI(controller).isMason(attacker) && AOCRangeWeapon(attacker.Weapon) == none) {
+	if(isMason(attacker) && AOCRangeWeapon(attacker.Weapon) == none) {
 		FindNearestBone(HitLocation, BestBone, BestHitLocation);
 		if (BestBone == 'SK_Head') {
 			Damage = damage > maxDmg ? maxDmg : damage;
@@ -413,7 +348,7 @@ simulated function displayHitEffects(vector Momentum, vector HitLocation) {
 	}
 }
 
-function String GetNotifyKilledHudMarkupText() {
+simulated function String GetNotifyKilledHudMarkupText() {
 	return "<font color=\"#B27500\">Cyclops</font>";
 }
 
@@ -572,7 +507,6 @@ simulated function PlaySound_Whoosh()
 defaultproperties
 {
     ControllerClass = class'BossNPC_CyclopeAI'
-    defaultDmgCls = class'AOCDmgType_Generic' //class'AOCDmgType_Blunt'
 
     SightRadius = 999999.f
 

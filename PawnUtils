@@ -1,0 +1,38 @@
+private static simulated function bool IsValidTarget(Pawn targetPawn, Pawn bossNpc) {
+    if (targetPawn == bossNpc)
+        return false;
+
+    if(isAgatha(targetPawn))
+        return false;
+
+    if (targetPawn.bTearOff || targetPawn.Health <= 0)
+        return false;
+
+    if (AOCPawn(targetPawn) != none && AOCPawn(targetPawn).bPawnIsDead)
+        return false;
+
+    return true;
+}
+
+private static simulated function bool isAgatha(Actor act) {
+	return testFamilyFaction(act, EFAC_AGATHA);
+}
+
+private static simulated function bool isMason(Actor act) {
+	return testFamilyFaction(act, EFAC_MASON);
+}
+
+private static simulated function bool testFamilyFaction(Actor act, EAOCFaction faction) {
+	local AOCPawn p;
+
+	if(act != none)
+		p = AOCPawn(act);
+
+	if(p == none && Controller(act) != none)
+		p = AOCPawn(Controller(act).pawn);
+
+	if (p != none && p.PawnInfo.myFamily.FamilyFaction == faction )
+		return true;
+
+	return false;
+}
