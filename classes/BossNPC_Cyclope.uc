@@ -70,8 +70,7 @@ simulated function ApplyAttack_Start() {
 }
 
 /**
-* Called by most attacks to apply the damage during the interation through possible targets.
-* Returns if the damage got applied.
+* Called by most attacks to relay the damage during the interation through possible targets.
 */
 simulated function bool AttackPawn(Pawn target, byte attackType, vector damageSourcePos) {
 	if (!IsValidTarget(target, self) || m_AttackedPawns.ContainsKey(target) || getALocalPlayerController().pawn != target) {
@@ -80,6 +79,7 @@ simulated function bool AttackPawn(Pawn target, byte attackType, vector damageSo
 
     m_AttackedPawns.Add(target, target);
 	AOCPawn(target).ReplicatedHitInfo.DamageString = "&";
+	lognotify("happens immediately");
 	SandcastlePawn(target).AttackedByBossNpc(attackType, damageSourcePos, self);
 
 	if(BossNpcAttackInfos[attackType].playTumble)
@@ -133,17 +133,42 @@ simulated function ApplyAttack_FootKick() {
     m_BodyMesh.GetSocketWorldLocationAndRotation('FootKick_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_KICK].DamageRadius) {
-		if(!AttackPawn(pawn, CYCLOPE_ATTACK_FOOT_KICK, damageSourcePos)) continue;
+		if(!AttackPawn(pawn, CYCLOPE_ATTACK_FOOT_KICK,  damageSourcePos)) continue;
 
 		if(pawn.health < BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_KICK].BaseDamage + 20) {
-			SandcastlePawn(pawn).cyclopsKick(location);
+			cyclopsKickPawn(AOCPawn(pawn));
 		}
 		else {
 			footDir = Vector(damageSourceRot);
-			forceDir = Normal(Normal2D(footDir) + Vec3(0, 0, 3));
+			forceDir = Normal(Normal2D(footDir) + Vec3(0, 0, 1));
 			SandcastlePawn(pawn).cyclopsKickSmall(forceDir, damageSourcePos);
+			pawn.SetLocation(Location + forceDir * Vec3(0, 0, 30));
+		   	pawn.SetPhysics(PHYS_Falling);
+		    pawn.AddVelocity(forceDir * 500, damageSourcePos, class'AOCDmgType_Generic');
 		}
     }
+}
+
+simulated function cyclopsKickPawn(AocPawn p) {
+	local Vector forceDir;
+	local vector bossNpcMomentum;
+	local vector bossNpcForceLoc;
+
+	SandcastlePawn(p).cyclopsKick(location);
+	forceDir =  normal(location - p.location);
+	bossNpcForceLoc = forceDir * 50 + (p.location - vect(0,0,-100));
+	bossNpcMomentum = forceDir * -9999;
+	bossNpcMomentum.Z = 5000;
+	p.ReplicatedHitInfo.HitLocation = p.Location;
+	p.ReplicatedHitInfo.DamageType = class'AOCDmgType_Generic';
+	p.ReplicatedHitInfo.BoneName = 'b_spine_C';
+	p.ReplicatedHitInfo.DamageString = "I";
+	p.LastTakeHitInfo.Momentum = bossNpcMomentum;
+	p.LastTakeHitInfo.HitLocation = bossNpcForceLoc;
+	p.Mass = 1;
+	p.Velocity.Z = 700;
+	p.SetPhysics(PHYS_Falling);
+	p.Mesh.AddImpulse(bossNpcMomentum, bossNpcForceLoc);
 }
 
 simulated function ApplyAttack_Forward() {

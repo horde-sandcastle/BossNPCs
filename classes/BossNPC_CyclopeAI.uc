@@ -210,7 +210,7 @@ state Attacking {
             }
         }
 
-        m_CurrentAttack = attack;
+        m_CurrentAttack = CYCLOPE_ATTACK_FOOT_KICK;//attack;
     }
 
     function ECyclopeAttack getSideAttack(float targetAngle) {
