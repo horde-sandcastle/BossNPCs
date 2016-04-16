@@ -43,13 +43,10 @@ simulated function float HUD_Overhead_GetHealthBarAdditionalZOffset() { return 1
 simulated event PostBeginPlay() {
 	super.PostBeginPlay();
 
-	if (controller == none && (Health > 0) && !bDontPossess ) {
-		SpawnDefaultController();
-	}
+	self.Mesh.SetScale(2.15);
 
 	m_AttackedPawns = new class'Dict';
 
-	m_BodyMesh.SetScale(2.15);
 }
 
 simulated event Tick(float DeltaTime) {
@@ -73,17 +70,23 @@ simulated function ApplyAttack_Start() {
 * Called by most attacks to relay the damage during the interation through possible targets.
 */
 simulated function bool AttackPawn(Pawn target, byte attackType, vector damageSourcePos) {
-	if (!IsValidTarget(target, self) || m_AttackedPawns.ContainsKey(target) || getALocalPlayerController().pawn != target) {
+
+	if (!IsValidTarget(target, self) || m_AttackedPawns.ContainsKey(target)/* || getALocalPlayerController().pawn != target*/)
+	{
 		return false;
 	}
 
+
     m_AttackedPawns.Add(target, target);
+
 	AOCPawn(target).ReplicatedHitInfo.DamageString = "&";
-	lognotify("happens immediately");
+
 	SandcastlePawn(target).AttackedByBossNpc(attackType, damageSourcePos, self);
+
 
 	if(BossNpcAttackInfos[attackType].playTumble)
 		SandcastlePawn(target).playTumble();
+
 
     if(debug) Lognotify("Dmg Scr Dist: "$VSize(damageSourcePos - target.location));
 
@@ -98,7 +101,7 @@ simulated function ApplyAttack_Smash_Impact() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation('Smash_Socket', damageSourcePos, damageSourceRot);
+    self.Mesh.GetSocketWorldLocationAndRotation('Smash_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_SMASH].DamageRadius) {
 		AttackPawn(pawn, CYCLOPE_ATTACK_SMASH, damageSourcePos);
@@ -113,7 +116,7 @@ simulated function ApplyAttack_FootCrush() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation('FootCrush_Socket', damageSourcePos, damageSourceRot);
+    self.Mesh.GetSocketWorldLocationAndRotation('FootCrush_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_CRUSH].DamageRadius) {
         AttackPawn(pawn, CYCLOPE_ATTACK_FOOT_CRUSH, damageSourcePos);
@@ -130,7 +133,7 @@ simulated function ApplyAttack_FootKick() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation('FootKick_Socket', damageSourcePos, damageSourceRot);
+    self.Mesh.GetSocketWorldLocationAndRotation('FootKick_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_KICK].DamageRadius) {
 		if(!AttackPawn(pawn, CYCLOPE_ATTACK_FOOT_KICK,  damageSourcePos)) continue;
@@ -179,7 +182,7 @@ simulated function ApplyAttack_Forward() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', damageSourcePos, damageSourceRot);
+    self.Mesh.GetSocketWorldLocationAndRotation('Right_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_FORWARD].DamageRadius) {
 		AttackPawn(pawn, CYCLOPE_ATTACK_FORWARD, damageSourcePos);
@@ -194,7 +197,7 @@ simulated function ApplyAttack_Forward2() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation('Left_Socket', damageSourcePos, damageSourceRot);
+    self.Mesh.GetSocketWorldLocationAndRotation('Left_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_FORWARD_2].DamageRadius) {
         AttackPawn(pawn, CYCLOPE_ATTACK_FORWARD_2, damageSourcePos);
@@ -209,7 +212,7 @@ simulated function ApplyAttack_Left() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation('Left_Socket', damageSourcePos, damageSourceRot);
+    self.Mesh.GetSocketWorldLocationAndRotation('Left_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_LEFT].DamageRadius) {
         AttackPawn(pawn, CYCLOPE_ATTACK_LEFT, damageSourcePos);
@@ -224,7 +227,7 @@ simulated function ApplyAttack_Right() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', damageSourcePos, damageSourceRot);
+    self.Mesh.GetSocketWorldLocationAndRotation('Right_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_RIGHT].DamageRadius) {
          AttackPawn(pawn, CYCLOPE_ATTACK_RIGHT, damageSourcePos);
@@ -239,7 +242,7 @@ simulated function ApplyAttack_Side_Left() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation( 'Left_Socket', damageSourcePos, damageSourceRot);
+    self.Mesh.GetSocketWorldLocationAndRotation( 'Left_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_SIDE_LEFT].DamageRadius) {
          AttackPawn(pawn, CYCLOPE_ATTACK_SIDE_LEFT, damageSourcePos);
@@ -254,7 +257,7 @@ simulated function ApplyAttack_Side_Right() {
 
     world = class'WorldInfo'.static.GetWorldInfo();
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation( 'Right_Socket', damageSourcePos, damageSourceRot);
+    self.Mesh.GetSocketWorldLocationAndRotation( 'Right_Socket', damageSourcePos, damageSourceRot);
 
     foreach world.AllPawns(class'Pawn', pawn, damageSourcePos, BossNpcAttackInfos[CYCLOPE_ATTACK_SIDE_RIGHT].DamageRadius) {
         AttackPawn(pawn, CYCLOPE_ATTACK_SIDE_RIGHT, damageSourcePos);
@@ -269,7 +272,7 @@ simulated function Grabbed() {
     local Vector ballPos;
     local Rotator ballRot;
 
-    m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', ballPos, ballRot);
+    self.Mesh.GetSocketWorldLocationAndRotation('Right_Socket', ballPos, ballRot);
 
     ballProjComp = new(self) class'StaticMeshComponent';
     ballProjComp.SetStaticMesh(StaticMesh'CHV_Weapons-siege.Bastilla.Catapult_Rock');
@@ -296,7 +299,7 @@ simulated function Released() {
 	ballProjComp = none;
 
 	if(Role == Role_Authority) {
-		m_BodyMesh.GetSocketWorldLocationAndRotation('Right_Socket', ballPos, ballRot);
+		self.Mesh.GetSocketWorldLocationAndRotation('Right_Socket', ballPos, ballRot);
 		targetLoc = BossNPC_CyclopeAI(controller).m_CombatTarget.location;
 	    SpawnProjectile(ballPos, targetLoc);
 	}
@@ -531,11 +534,11 @@ simulated function PlaySound_Whoosh()
 
 defaultproperties
 {
-    ControllerClass = class'BossNPC_CyclopeAI'
+    NPCController = class'BossNPC_CyclopeAI'
 
     SightRadius = 999999.f
 
-    begin object name=BodyMesh
+    begin object name=WPawnSkeletalMeshComponent
 	    SkeletalMesh     = SkeletalMesh'BossNPCs_Content.Cyclope.Cyclope_Mesh'
 	    PhysicsAsset     = PhysicsAsset'BossNPCs_Content.Cyclope.Cyclope_Mesh_Physics'
 	    AnimSets(0)      = AnimSet'BossNPCs_Content.Cyclope.Cyclope_AnimSet'

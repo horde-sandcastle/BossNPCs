@@ -1,4 +1,4 @@
-class BossNPC_PawnBase extends Pawn implements (IBossNpcPawn);
+class BossNPC_PawnBase extends GamePawn implements (IBossNpcPawn);
 
 var struct BossNpcAttackInfo {
 	var byte 				ID;
@@ -13,13 +13,14 @@ var struct BossNpcAttackInfo {
 
 var array<BossNpcAttackInfo> BossNpcAttackInfos;
 
-var PrivateWrite SkeletalMeshComponent 		      m_BodyMesh;
 var PrivateWrite DynamicLightEnvironmentComponent m_MeshLighEnv;
 
 var PrivateWrite AnimNodeBlend    m_CustomAnimBlend;
 var PrivateWrite AnimNodeSequence m_CustomAnimSequence;
+
 var private name m_CustomAnimSeqName;
-var private repnotify int  m_CustomAnimSeqPlayID;
+var private bool m_CustomAnimReset;
+var private repnotify int m_CustomAnimID;
 
 var float m_Speed;
 
@@ -43,35 +44,48 @@ var repnotify bool m_dying;
 var bool m_rotateToGround;
 var ParticleSystemComponent deathDust;
 
+var(NPC) SkeletalMeshComponent NPCMesh;
+var(NPC) class<AIController> NPCController;
+
 `include(Stocks)
 `include(Log)
 `include(PawnUtils)
 `include(bossNpcAttacks)
 
 simulated function postBeginPlay() {
+	if (NPCController !=none)
+		self.ControllerClass = NPCController;
+
+	SpawnDefaultController();
 	super.postBeginPlay();
 	initBossNpcAttackInfos();
+	DisableAnimationLodding();
 }
+
 
 replication
 {
 	if (bNetDirty && Role == ROLE_Authority)
-		m_Speed, m_IsSprinting, m_SprintSpeed, m_IsInCombat, m_CustomAnimSeqName, m_CustomAnimSeqPlayID, m_dying;
+		m_Speed, m_IsSprinting, m_SprintSpeed, m_IsInCombat, m_dying, m_CustomAnimSeqName, m_CustomAnimReset, m_CustomAnimID;
 }
 
 simulated event PostInitAnimTree(SkeletalMeshComponent SkelComp) {
     super.PostInitAnimTree(SkelComp);
-
-    m_CustomAnimBlend = AnimNodeBlend(m_BodyMesh.FindAnimNode('CustomAnim_Blend'));
-    m_CustomAnimSequence = AnimNodeSequence(m_BodyMesh.FindAnimNode('CustomAnim_Sequence'));
+if (SkelComp == Mesh)
+	{
+    m_CustomAnimBlend = AnimNodeBlend(Mesh.FindAnimNode('CustomAnim_Blend'));
+    m_CustomAnimSequence = AnimNodeSequence(Mesh.FindAnimNode('CustomAnim_Sequence'));
     m_CustomAnimSequence.bCauseActorAnimEnd = true;
+
+	m_CustomAnimBlend.bSkipBlendWhenNotRendered = false;}
+
+	self.DisableAnimationLodding();
 }
 
 simulated event ReplicatedEvent(name VarName) {
-	if (VarName == 'm_CustomAnimSeqPlayID') {
-		self.PlayCustomAnim(m_CustomAnimSeqName);
-	}
-	else if(VarName == 'm_dying') {
+	if (VarName == 'm_CustomAnimID')
+		PlayCustomAnim_CL();
+	else if (VarName == 'm_dying') {
 		GotoState('Dying');
 	}
 
@@ -104,18 +118,27 @@ simulated event Tick(float DeltaTime) {
     super.Tick(DeltaTime);
 }
 
-simulated function PlayCustomAnim(name SeqName)
+
+simulated function PlayCustomAnim(name SeqName, optional bool forceReset = false)
 {
+    if (self.Role == ROLE_Authority)
+    {
+		if (SeqName == m_CustomAnimSeqName && !forceReset)
+			return;
+    }
+
+	m_CustomAnimSeqName = seqName;
+	m_CustomAnimReset = forceReset;
+
 	m_CustomAnimBlend.SetBlendTarget(1.0, 0.5);
     m_CustomAnimSequence.SetAnim(SeqName);
     m_CustomAnimSequence.PlayAnim();
 
     if (self.Role == ROLE_Authority)
-    {
-        m_CustomAnimSeqName = SeqName;
-        m_CustomAnimSeqPlayID++;
-    }
+        m_CustomAnimID++;
 }
+
+simulated function PlayCustomAnim_CL() { self.PlayCustomAnim(m_CustomAnimSeqName, m_CustomAnimReset); }
 
 simulated event OnAnimEnd(AnimNodeSequence SeqNode, float PlayedTime, float ExcessTime)
 {
@@ -171,7 +194,7 @@ simulated state Dying {
 	simulated function pawnFadeOut() {
 	    local Vector BoneLoc;
 
-		BoneLoc = m_BodyMesh.GetBoneLocation('joint7');
+		BoneLoc = self.Mesh.GetBoneLocation('joint7');
 	    deathDust = WorldInfo.MyEmitterPool.SpawnEmitter(ParticleSystem'CHV_PartiPack.Particles.P_smokepot',BoneLoc - vec3(0,0,250));
 	    deathDust.setscale( 2 );
 	}
@@ -180,7 +203,7 @@ Begin:
 	m_dying = true;
 	SetTimer(6.0, false, '_Dead');
 	pawnFadeOut();
-    PlayCustomAnim('Die');
+    PlayCustomAnim('Die', true);
 	FinishAnim(m_CustomAnimSequence);
 	m_rotateToGround = true;
     m_CustomAnimSequence.stopAnim();
@@ -191,7 +214,7 @@ Begin:
     //InitRagdoll(); <-- not working too well, makes cyclops deflate like a baloon
 }
 
-function playHitSound(AocPawn InstigatedBy) {
+simulated function playHitSound(AocPawn InstigatedBy) {
 	local SoundCue ImpactSound;
 	local AOCMeleeWeapon MeleeOwnerWeapon;
 
@@ -203,7 +226,7 @@ function playHitSound(AocPawn InstigatedBy) {
 	}
 }
 
-function bool FindNearestBone(vector InitialHitLocation, out name BestBone, out vector BestHitLocation) {
+simulated function bool FindNearestBone(vector InitialHitLocation, out name BestBone, out vector BestHitLocation) {
 	local int i, dist, BestDist;
 	local vector BoneLoc;
 	local name BoneName;
@@ -234,6 +257,15 @@ function String GetNotifyKilledHudMarkupText() {
 	return "<font color=\"#B27500\">Boss NPC</font>";
 }
 
+simulated function DisableAnimationLodding() {
+	local int i;
+
+	for(i = 0; i < ArrayCount(Mesh.AnimationLODDistanceFactors); ++i) {
+		Mesh.AnimationLODDistanceFactors[i] = 0;
+	}
+	Mesh.DedicatedServerUpdateFrameRate = 0;
+}
+
 defaultproperties
 {
     ControllerClass = class'BossNPC_AIBase'
@@ -242,6 +274,7 @@ defaultproperties
     bReplicateHealthToAll = true
     bCanBeBaseForPawns    = false
     bCanStepUpOn          = false
+	bAlwaysRelevant       = true;
 
     begin object name=MeshLightEnvironment class=DynamicLightEnvironmentComponent
         bSynthesizeSHLight              = true
@@ -252,57 +285,42 @@ defaultproperties
         MinTimeBetweenFullUpdates = .2
     end object
     Components.Add(MeshLightEnvironment)
-
     m_MeshLighEnv = MeshLightEnvironment
 
-    begin object name=BodyMesh class=SkeletalMeshComponent
-        AlwaysLoadOnClient = true
-        AlwaysLoadOnServer = true
 
-	    bUpdateSkelWhenNotRendered        = true
-	    bIgnoreControllersWhenNotRendered = false
+	Begin Object Class=SkeletalMeshComponent Name=WPawnSkeletalMeshComponent
+		bIgnoreControllersWhenNotRendered=false
+		bTickAnimNodesWhenNotRendered=TRUE
+		bAutoFreezeClothWhenNotRendered=TRUE
+		bUpdateKinematicBonesFromAnimation=TRUE
+		bSyncActorLocationToRootRigidBody=TRUE
 
-        CastShadow         = true
-        bCastDynamicShadow = true
+		CollideActors=true
+		BlockZeroExtent=true
+		BlockNonZeroExtent=false
+		BlockRigidBody=TRUE
 
-        bCacheAnimSequenceNodes = false
+		LightEnvironment = MeshLightEnvironment
 
-        CollideActors      = false
-        BlockActors        = false
-        BlockZeroExtent    = false
-        BlockNonZeroExtent = false
+		AlwaysLoadOnClient=TRUE
+		AlwaysLoadOnServer=TRUE
+		bUpdateSkelWhenNotRendered=TRUE
 
-        RBChannel             = RBCC_Untitled3
-        RBCollideWithChannels = ( Untitled3 = true )
-        RBDominanceGroup      = 20
+		DedicatedServerUpdateFrameRate = 0
+		AnimationLODFrameRates[0]=0
+		AnimationLODFrameRates[1]=0
+		AnimationLODFrameRates[2]=0
+		AnimationLODFrameRates[3]=0
 
-        LightEnvironment = MeshLightEnvironment
+	End Object
+	NPCMesh = WPawnSkeletalMeshComponent
+	mesh = WPawnSkeletalMeshComponent
+	components.add(WPawnSkeletalMeshComponent)
 
-        bHasPhysicsAssetInstance = true
-
-        TickGroup = TG_PreAsyncWork
-
-        bPerBoneMotionBlur = true
-    end object
-    Components.Add(BodyMesh)
-
-    m_BodyMesh = BodyMesh
-    Mesh = BodyMesh
-
-    begin object name=CollisionCylinder
-        CollideActors      = true
-        BlockActors        = true
-        BlockRigidBody     = true
-        BlockZeroExtent    = true
-        BlockNonZeroExtent = true
-    end object
-
-    CollisionComponent = CollisionCylinder
-    WalkingPhysics     = PHYS_Walking
+    WalkingPhysics = PHYS_Walking
 
     m_FootStepStartDist = 0
     m_FarFootStepStartDist = 300
     m_FarFootStepEndDist = 600
 
-    m_CustomAnimSeqPlayID = 0
 }

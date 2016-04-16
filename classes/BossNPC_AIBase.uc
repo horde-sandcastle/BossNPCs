@@ -487,6 +487,7 @@ function ResetAttack()
 state Attacking
 {
     local float returnedCooldown;
+    local name currseq;
 
     event BeginState(Name PreviousStateName) {
         m_HitLockCount++;
@@ -498,30 +499,29 @@ state Attacking
         	restrictedAttack = noRestrictedAttack;
     }
 
-    function bool BeginAttack(out float Cooldown) {
-        DecideAttack(Cooldown);
-        PushState('PerformingAttack');
-
-        return false;
-    }
-
 	/**
 	* To be overwritten by subclasses to decide on the boss specific attack
 	*/
-    function DecideAttack(out float Cooldown) {
+    function bool DecideAttack(out float Cooldown, out name seq) {
         Cooldown = -1;
+        return false;
     }
 
 Begin:
     FinishRotation();
 
-    if (BeginAttack(returnedCooldown)) {
+    if (DecideAttack(returnedCooldown, currseq)) {
+        m_Pawn.PlayCustomAnim(currseq, true);
+
         m_CombatAttackDelay = 0;
 
         if (returnedCooldown > 0) {
             m_CombatCanAttack = false;
             SetTimer(returnedCooldown, false, 'ResetAttack');
         }
+
+		FinishAnim(m_Pawn.m_CustomAnimSequence);
+
     }
 
     if (activeTask != none )
@@ -532,37 +532,12 @@ Begin:
         GotoState('Idle');
 }
 
-state PerformingAttack {
-    event PushedState() {
-        m_HitLockCount++;
-    }
-
-    event PoppedState() {
-        m_HitLockCount--;
-    }
-
-    function bool StateAllowsSwitchToTask() {
-		return false;
-    }
-
-    function FoundCombatTarget() { }
-
-    function LostCombatTarget() { }
-
-    function PlayAttackAnimation() { }
-
-Begin:
-	PlayAttackAnimation();
-    FinishAnim(m_Pawn.m_CustomAnimSequence);
-    PopState();
-}
-
-simulated function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) {
+function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) {
     m_Dead = true;
     SetTimer(6.0, false, '_Dead');
 }
 
-simulated function _Dead() {
+function _Dead() {
     self.Destroy();
 }
 

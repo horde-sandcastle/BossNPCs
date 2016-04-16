@@ -172,7 +172,7 @@ static private function name GetAttackSequenceName(ECyclopeAttack attackID)
 }
 
 state Attacking {
-    function DecideAttack(out float Cooldown) {
+    function bool DecideAttack(out float Cooldown, out name seq) {
         local Vector dirToTarget;
         local Vector targetLoc;
         local float dist;
@@ -210,7 +210,9 @@ state Attacking {
             }
         }
 
-        m_CurrentAttack = CYCLOPE_ATTACK_FOOT_KICK;//attack;
+        m_CurrentAttack = attack;
+        seq = GetAttackSequenceName(m_CurrentAttack);
+        return true;
     }
 
     function ECyclopeAttack getSideAttack(float targetAngle) {
@@ -299,12 +301,6 @@ state Attacking {
         }
 
         return attacks;
-    }
-}
-
-state PerformingAttack {
-    function PlayAttackAnimation() {
-        m_Pawn.PlayCustomAnim(GetAttackSequenceName(m_CurrentAttack));
     }
 }
 
