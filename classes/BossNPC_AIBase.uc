@@ -243,7 +243,7 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
     local float targetAngle;
     super.NotifyTakeHit(InstigatedBy, HitLocation, Damage, damageType, Momentum);
 
-    if (m_Dead || IsInState('Attacking', true))
+    if (m_Dead)// || IsInState('Attacking', true))
         return;
 
     dirToTarget = Normal(m_Pawn.Location - HitLocation);
