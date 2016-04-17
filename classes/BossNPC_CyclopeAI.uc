@@ -38,25 +38,10 @@ function ResetAttackDual()
 	m_SmashAttackEnabled = true;
 }
 
-state Turn
-{
-    event PushedState()
-    {
-        m_HitLockCount++;
-
-        m_Pawn.PlayCustomAnim(m_CurrentTurnSeqName);
-    }
-
-    event PoppedState()
-    {
-        m_HitLockCount--;
-    }
-
-    function FoundCombatTarget() { }
-
-    function LostCombatTarget() { }
+state Turn {
 
 Begin:
+	m_Pawn.PlayCustomAnim(m_CurrentTurnSeqName);
     FinishAnim(m_Pawn.m_CustomAnimSequence);
 
     PopState();
@@ -108,26 +93,18 @@ state Combating
     }
 }
 
-state Hit
-{
-    function bool BeginHitSequence(float angle)
-    {
-        if (angle < -45)
-        {
+state Hit {
+    function bool BeginHitSequence(float angle) {
+        if (angle < -45) {
             m_Pawn.PlayCustomAnim('Hit_Left');
         }
-        else
-        if (angle > +45)
-        {
+        else if (angle > +45) {
             m_Pawn.PlayCustomAnim('Hit_Right');
         }
-        else
-        if (Abs(angle) > 120)
-        {
+        else if (Abs(angle) > 120) {
             m_Pawn.PlayCustomAnim('Hit_Back');
         }
-        else
-        {
+        else {
             m_Pawn.PlayCustomAnim('Hit_Front');
         }
 
@@ -135,10 +112,8 @@ state Hit
     }
 }
 
-static private function name GetAttackSequenceName(ECyclopeAttack attackID)
-{
-    switch (attackID)
-    {
+static private function name GetAttackSequenceName(ECyclopeAttack attackID) {
+    switch (attackID) {
     case CYCLOPE_ATTACK_SMASH:
         return 'Attack_Dual';
 

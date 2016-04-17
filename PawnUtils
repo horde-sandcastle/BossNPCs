@@ -2,7 +2,7 @@ private static simulated function bool IsValidTarget(Pawn targetPawn, Pawn bossN
     if (targetPawn == bossNpc)
         return false;
 
-    if(isAgatha(targetPawn))
+    if(!isMason(targetPawn))
         return false;
 
     if (targetPawn.bTearOff || targetPawn.Health <= 0)

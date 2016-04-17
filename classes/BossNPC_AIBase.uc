@@ -25,12 +25,8 @@ var byte  restrictedAttack;
 var float m_CombatChaseEndDistance;
 var float m_CombatChaseSprintDistance;
 
-var float m_CombatAttackDelay;
-
 var float m_HitAngle;
 var float m_NextHitDelay;
-
-var int   m_HitLockCount;
 
 var bool m_Dead;
 
@@ -109,7 +105,7 @@ function Pawn FindCombatTarget() {
     return none;
 }
 
-function Pawn FindClosestCombatTarget(bool noticeOnly) {
+function Pawn FindClosestVisibleCombatTarget(bool noticeOnly) {
     local WorldInfo world;
     local array<Pawn> targetPawns;
     local Pawn targetPawn;
@@ -190,6 +186,11 @@ function getAllTasks() {
 	}
 }
 
+// during an attack the countdown is paused
+// needs to be fairly small delay, because target might teleport out of range suddenly
+const TARGET_RESET_DELAY_MIN = 5;
+const TARGET_RESET_DELAY_MAX = 8;
+
 /**
 * Executed each tick if not busy
 */
@@ -199,52 +200,50 @@ function manageCombatTarget(float DeltaTime) {
     if (m_NextHitDelay > 0)
         m_NextHitDelay -= DeltaTime;
 
-    if (m_CombatTarget == none) {
+    if (m_CombatTarget == none || !IsValidCombatTarget(m_CombatTarget, false)) {
         m_CombatTargetSearchDelay -= DeltaTime;
 
         if (m_CombatTargetSearchDelay <= 0) {
-        	m_CombatTargetSearchDelay = 0.25;
-            m_CombatTarget = FindCombatTarget();
+        	m_CombatTargetSearchDelay = 0.5;
+            otherTarget = FindCombatTarget();
 
-            if (m_CombatTarget != none) {
-                FoundCombatTarget();
+            if (m_CombatTarget != otherTarget) {
+                m_CombatTarget = otherTarget;
+                CombatTargetChanged();
             }
         }
     }
-    else if (!IsValidCombatTarget(m_CombatTarget, false)) {
-        m_CombatTarget = none;
-        LostCombatTarget();
-    }
-    else {
-        m_CombatAttackDelay += DeltaTime;
-        if (m_CombatAttackDelay > 5) {
-	        m_CombatAttackDelay = 0;
-			m_CombatTargetResetDelay -= DeltaTime;
-	        if (m_CombatTargetResetDelay <= 0) {
-	        	m_CombatTargetResetDelay = RandRange(3, 6);
-	            otherTarget = self.FindClosestCombatTarget(true);
-	            if (otherTarget != none
-	            	&& otherTarget != m_CombatTarget
-	            	&& VSize2D(otherTarget.Location - m_Pawn.Location) < VSize2D(m_CombatTarget.Location - m_Pawn.Location)) {
-	                m_CombatTarget = otherTarget;
-	            }
-	        }
+    else if (!IsInState('Attacking', true)) {
+		m_CombatTargetResetDelay -= DeltaTime;
+        if (m_CombatTargetResetDelay <= 0) {
+        	m_CombatTargetResetDelay = RandRange(TARGET_RESET_DELAY_MIN, TARGET_RESET_DELAY_MAX);
+            otherTarget = self.FindClosestVisibleCombatTarget(true);
+            if (otherTarget != none
+            	&& otherTarget != m_CombatTarget
+            	&& VSize2D(otherTarget.Location - m_Pawn.Location) < VSize2D(m_CombatTarget.Location - m_Pawn.Location)) {
+                m_CombatTarget = otherTarget;
+                CombatTargetChanged();
+            }
         }
     }
 }
 
-function FoundCombatTarget() { }
-function LostCombatTarget() { }
+/**
+* Does not interrupt states like attacking or hit
+* because gotoState only executes when the state code
+* continues execution, i.e. the latent function finished.
+*/
+function CombatTargetChanged() {
+	if (m_CombatTarget == none)
+    	GotoState('Idle');
+}
 
 function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, class<DamageType> damageType, vector Momentum) {
     local Vector dirToTarget;
     local float targetAngle;
     super.NotifyTakeHit(InstigatedBy, HitLocation, Damage, damageType, Momentum);
 
-    if (m_Dead)
-        return;
-
-    if (m_HitLockCount > 0)
+    if (m_Dead || IsInState('Attacking', true))
         return;
 
     dirToTarget = Normal(m_Pawn.Location - HitLocation);
@@ -275,7 +274,7 @@ state DoingTask {
 	}
 
 Begin:
-	if( activeTask == none || activeTask.isCompleted ) {
+	if (activeTask == none || activeTask.isCompleted) {
 		activeTask = none;
 		GotoState('Idle');
 	}
@@ -296,9 +295,6 @@ state Idle {
         m_CombatTarget = none;
     }
 
-    event EndState(Name NextStateName) {
-    }
-
     event Tick(float DeltaTime) {
         global.Tick(DeltaTime);
 
@@ -309,49 +305,45 @@ state Idle {
         }
     }
 
-	function FoundCombatTarget() {
-	    GotoState('Combating');
+	function CombatTargetChanged() {
+		if (m_CombatTarget != none)
+	    	GotoState('Combating');
+    	else
+            global.CombatTargetChanged();
 	}
 }
 
-state Wandering
-{
-	event BeginState(Name PreviousStateName)
-	{
+state Wandering {
+	event BeginState(Name PreviousStateName) {
 		m_WanderRemainingTime = RandRange(m_WanderDuration.X, m_WanderDuration.Y);
 		m_WanderDirection = RandGroundDirection();
 	}
 
-	event EndState(Name NextStateName)
-	{
+	event EndState(Name NextStateName) {
         m_Pawn.Acceleration = Vec3(0, 0, 0);
-
 		m_WanderStartDelay = RandRange(m_WanderDelay.X, m_WanderDelay.Y);
 	}
 
-	event Tick(float DeltaTime)
-	{
+	event Tick(float DeltaTime) {
         global.Tick(DeltaTime);
 
-        if (m_CombatTarget == none && activeTask == none)
-        {
+        if (m_CombatTarget == none && activeTask == none) {
 	            m_WanderRemainingTime -= DeltaTime;
 		    if (m_WanderRemainingTime <= 0)
 		        GotoState('Idle');
         }
 	}
 
-    function FoundCombatTarget()
-    {
-        GotoState('Combating');
+    function CombatTargetChanged() {
+        if (m_CombatTarget != none)
+        	GotoState('Combating');
+        else
+            global.CombatTargetChanged();
     }
 
 Begin:
-    RotateTo(
-        m_WanderDirection);
-
-    MoveTo(
-        m_Pawn.Location + m_WanderDirection * m_Pawn.GetMoveSpeed());
+    RotateTo(m_WanderDirection);
+    MoveTo(m_Pawn.Location + m_WanderDirection * m_Pawn.GetMoveSpeed());
 
     goto 'Begin';
 }
@@ -399,42 +391,26 @@ state Combating {
                 GotoState('Chasing');
         }
     }
-
-    function LostCombatTarget() {
-        GotoState('Idle');
-    }
 }
 
 state Chasing {
     local float dist;
 
-    event BeginState(Name PreviousStateName) { }
-
-    event EndState(Name NextStateName)
-    {
+    event EndState(Name NextStateName) {
         m_Pawn.Acceleration = Vec3(0, 0, 0);
 
         m_Pawn.m_IsSprinting = false;
     }
 
-    function LostCombatTarget()
-    {
-        GotoState('Idle');
-    }
-
 Begin:
-    while (m_CombatTarget != none)
-    {
+    while (m_CombatTarget != none) {
 	    dist = VSize2D(m_CombatTarget.Location - m_Pawn.Location);
 
-        if (dist > m_CombatChaseSprintDistance)
-        {
+        if (dist > m_CombatChaseSprintDistance) {
             m_Pawn.m_IsSprinting = true;
         }
 
-        RotateTo(
-            Normal2D(m_CombatTarget.Location - m_Pawn.Location));
-
+        RotateTo( Normal2D(m_CombatTarget.Location - m_Pawn.Location));
         MoveToward(m_CombatTarget,, m_CombatChaseEndDistance / 3);
 
         if (dist <= m_CombatChaseEndDistance) {
@@ -444,35 +420,21 @@ Begin:
     }
 }
 
-state Hit
-{
-    function bool BeginHitSequence(float angle)
-    {
+const HIT_DEALY_MIN = 10;
+const HIT_DELAY_MAX = 15;
+
+state Hit {
+    function bool BeginHitSequence(float angle){
         return false;
     }
-
-    event PushedState()
-    {
-    }
-
-    event PoppedState()
-    {
-
-    }
-
-    function FoundCombatTarget() { }
-
-    function LostCombatTarget() { }
 
 Begin:
 	m_pawn.acceleration = vect(0,0,0);
     FinishRotation();
 
-    if (BeginHitSequence(m_HitAngle))
-    {
+    if (BeginHitSequence(m_HitAngle)) {
         FinishAnim(m_Pawn.m_CustomAnimSequence);
-
-        m_NextHitDelay = RandRange(8, 10);
+        m_NextHitDelay = RandRange(HIT_DEALY_MIN, HIT_DELAY_MAX);
         autoAggro = true;
     }
 
@@ -484,17 +446,11 @@ function ResetAttack()
 	m_CombatCanAttack = true;
 }
 
-state Attacking
-{
+state Attacking {
     local float returnedCooldown;
     local name currseq;
 
-    event BeginState(Name PreviousStateName) {
-        m_HitLockCount++;
-    }
-
     event EndState(Name NextStateName) {
-        m_HitLockCount--;
         if( !isAttackRestricted )
         	restrictedAttack = noRestrictedAttack;
     }
@@ -513,15 +469,12 @@ Begin:
     if (DecideAttack(returnedCooldown, currseq)) {
         m_Pawn.PlayCustomAnim(currseq, true);
 
-        m_CombatAttackDelay = 0;
-
         if (returnedCooldown > 0) {
             m_CombatCanAttack = false;
             SetTimer(returnedCooldown, false, 'ResetAttack');
         }
 
 		FinishAnim(m_Pawn.m_CustomAnimSequence);
-
     }
 
     if (activeTask != none )
