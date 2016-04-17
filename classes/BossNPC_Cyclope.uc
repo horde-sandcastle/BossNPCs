@@ -22,6 +22,9 @@ var SoundCue m_Cues_Striking;
 var SoundCue m_Cues_Threat;
 var SoundCue m_Cues_Victory;
 var SoundCue m_Cues_Whoosh;
+var SoundCue m_Cues_Crushed;
+var SoundCue m_Cues_Foot_Kicked_Small;
+var SoundCue m_Cues_Foot_Kicked_Big;
 
 var bool  m_BreathEnabled;
 var float m_BreathDelay;
@@ -73,7 +76,7 @@ simulated function bool AttackPawn(Pawn target, byte attackType, vector damageSo
     m_AttackedPawns.Add(target, target);
 
 	AOCPawn(target).ReplicatedHitInfo.DamageString = "&";
-	SandcastlePawn(target).AttackedByBossNpc(attackType, damageSourcePos, self);
+	applyAttackDmg(target, attackType, damageSourcePos);
 
 	if(BossNpcAttackInfos[attackType].playTumble)
 		SandcastlePawn(target).playTumble();
@@ -81,6 +84,35 @@ simulated function bool AttackPawn(Pawn target, byte attackType, vector damageSo
     if(debug) Lognotify("Dmg Scr Dist: "$VSize(damageSourcePos - target.location));
 
 	return true;
+}
+
+function applyAttackDmg(Pawn target, byte attack, vector HurtOrigin) {
+	local BossNpcAttackInfo attc;
+	local int index;
+
+	// even though this func is not simulated it is still executed with lesser authority!!
+	if (role < role_authority)  return;
+
+	index = BossNpcAttackInfos.Find('ID', attack);
+	if(index < 0) {
+		logerror("Boss npc attack with id "$attack$" is unknown! Add it to the include file.");
+		return;
+	}
+	attc = BossNpcAttackInfos[index];
+	target.TakeRadiusDamage(
+        Controller,
+        attc.BaseDamage,
+        attc.DamageRadius,
+        attc.DamageType,
+        attc.Momentum,
+        HurtOrigin,
+        attc.bFullDamage,
+        self,
+        attc.DamageFalloffExponent);
+
+     if (attack == CYCLOPE_ATTACK_FOOT_CRUSH && target.health <= 0) {
+         playSound_Crushed(target);
+     }
 }
 
 simulated function ApplyAttack_Smash_Impact() {
@@ -134,6 +166,7 @@ simulated function ApplyAttack_FootKick() {
 
 		if(pawnHP < BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_KICK].BaseDamage + 20) {
 			cyclopsKickPawn(AOCPawn(pawn));
+			self.PlaySound_Foot_Kicked_Big();
 		}
 		else {
 			footDir = Vector(damageSourceRot);
@@ -141,6 +174,7 @@ simulated function ApplyAttack_FootKick() {
 			pawn.SetLocation(Location + forceDir * Vec3(0, 0, 15));
 		   	pawn.SetPhysics(PHYS_Falling);
 		    pawn.AddVelocity(forceDir * SMALL_KICK_FORCE, damageSourcePos, class'AOCDmgType_Generic');
+		    self.PlaySound_Foot_Kicked_Small();
 		}
     }
 }
@@ -372,155 +406,142 @@ simulated function String GetNotifyKilledHudMarkupText() {
 	return "<font color=\"#B27500\">Cyclops</font>";
 }
 
-simulated function PlaySound_Breathing()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Breathing() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Breathing, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_DieImpaled()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_DieImpaled() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_DieImpaled, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Dying()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Dying() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Dying, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_GrabPlayerIn()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_GrabPlayerIn() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_GrabPlayerIn, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_GrabPlayerTaunt()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_GrabPlayerTaunt() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_GrabPlayerTaunt, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Grunt()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Grunt() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Grunt, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_GuardMode()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_GuardMode() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_GuardMode, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Hail()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Hail() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Hail, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Impaled()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Impaled() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Impaled, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Misc()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Misc() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Misc, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Ouch()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Ouch() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Ouch, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_OuchStrong()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_OuchStrong() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_OuchStrong, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Smash()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Smash() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Smash, true,,, self.Location);
     }
 }
 
-simulated function PlaySound_Striking()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Striking() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Striking, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Threat()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Threat() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Threat, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Victory()
-{
-    if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-    {
+simulated function PlaySound_Victory() {
+    if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(
            m_Cues_Victory, true,,, self.Location + Vec3(0, 0, self.EyeHeight));
     }
 }
 
-simulated function PlaySound_Whoosh()
-{
-	if (self.Role != ROLE_Authority || self.IsLocallyControlled())
-	{
+simulated function PlaySound_Whoosh() {
+	if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(m_Cues_Whoosh, true,,, self.Location);
+    }
+}
+
+/**
+* triggered by server dmg function. Requires replication.
+*/
+function PlaySound_Crushed(pawn victim) {
+	if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
+        self.PlaySound(m_Cues_Crushed, false,,, victim.Location);
+    }
+}
+
+simulated function PlaySound_Foot_Kicked_Small() {
+	if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
+        self.PlaySound(m_Cues_Foot_Kicked_Small, true,,, self.Location);
+    }
+}
+
+simulated function PlaySound_Foot_Kicked_Big() {
+	if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
+        self.PlaySound(m_Cues_Foot_Kicked_Big, true,,, self.Location);
     }
 }
 
@@ -575,6 +596,9 @@ defaultproperties
     m_Cues_Threat = SoundCue'BossNPCs_Content.Cyclope.Sounds.cyclope_threat_Cue'
     m_Cues_Victory = SoundCue'BossNPCs_Content.Cyclope.Sounds.cyclope_victory_Cue'
     m_Cues_Whoosh = SoundCue'BossNPCs_Content.Cyclope.Sounds.cyclope_whoosh_Cue'
+    m_Cues_Crushed = SoundCue'A_Impacts_Melee.Giant_stomped'
+    m_Cues_Foot_Kicked_Small = SoundCue'A_Phys_Mat_Impacts.Buckler_Blocking'
+    m_Cues_Foot_Kicked_Big = SoundCue'A_Impacts_Melee.head_explodie'
 
     debug = false
 }
