@@ -34,6 +34,8 @@ var bool appliedKick;
 
 var StaticMeshComponent ballProjComp; // dirtball attached to right hand
 
+var repnotify int hitRepCount;
+
 var bool debug;
 
 `include(Stocks)
@@ -43,13 +45,25 @@ var bool debug;
 simulated function float HUD_Overhead_GetHealthBarSizeScale() { return 1.5; }
 simulated function float HUD_Overhead_GetHealthBarAdditionalZOffset() { return 180; }
 
+replication {
+	if ( bNetDirty )
+        hitRepCount;
+}
+
+simulated event ReplicatedEvent(name VarName) {
+    super.ReplicatedEvent(VarName);
+
+    if (VarName == 'hitRepCount') {
+		displayHitEffects();
+    }
+}
+
 simulated event PostBeginPlay() {
 	super.PostBeginPlay();
 
 	self.Mesh.SetScale(2.15);
 
 	m_AttackedPawns = new class'Dict';
-
 }
 
 simulated event Tick(float DeltaTime) {
@@ -164,7 +178,7 @@ simulated function ApplyAttack_FootKick() {
         pawnHP = pawn.health;
 		if(!AttackPawn(pawn, CYCLOPE_ATTACK_FOOT_KICK,  damageSourcePos)) continue;
 
-		if(pawnHP < BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_KICK].BaseDamage + 20) {
+		if (pawnHP < BossNpcAttackInfos[CYCLOPE_ATTACK_FOOT_KICK].BaseDamage + 20) {
 			cyclopsKickPawn(AOCPawn(pawn));
 			self.PlaySound_Foot_Kicked_Big();
 		}
@@ -308,6 +322,7 @@ simulated function Grabbed() {
     ballProjComp.lightmassSettings.bUseEmissiveForStaticLighting  = true;
     ballProjComp.lightmassSettings.EmissiveBoost = 10;
     ballProjComp.settranslation( vec3(-10, -10, 0) );
+    ballProjComp.SetLightEnvironment(mesh.LightEnvironment);
 
 	mesh.AttachComponentToSocket(ballProjComp, 'Right_Socket');
 }
@@ -354,7 +369,10 @@ function SpawnProjectile( Vector startLoc, vector targetLoc ) {
 
 const maxDmg = 50;
 
-simulated event TakeDamage(
+/**
+* server only
+*/
+event TakeDamage(
     int Damage,
     Controller InstigatedBy,
     vector HitLocation,
@@ -372,32 +390,50 @@ simulated event TakeDamage(
 	if(isMason(attacker) && AOCRangeWeapon(attacker.Weapon) == none) {
 		FindNearestBone(HitLocation, BestBone, BestHitLocation);
 		if (BestBone == 'SK_Head') {
+			hitRepCount++; // to let the client know
 			Damage = damage > maxDmg ? maxDmg : damage;
 			playHitSound(attacker);
-			displayHitEffects(Momentum, HitLocation);
+			displayHitEffects();
 			super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
 		}
 	}
 }
 
-simulated function displayHitEffects(vector Momentum, vector HitLocation) {
+simulated function displayHitEffects() {
 	local ParticleSystem BloodTemplate;
 	local UTEmit_HitEffect HitEffect;
 	local rotator BloodMomentum;
+	local Vector headPos;
+	local vector frontDir;
 
-	if(Momentum.X == 0) {
-		Momentum.X = 1;
-	}
-	if(Momentum.Y == 0) {
-		Momentum.Y = 1;
-	}
+	if (self.Role == ROLE_Authority && !self.IsLocallyControlled()) return;
+
+	headPos = Mesh.GetBoneLocation('SK_Head');
+	frontDir = normal(Vector(Rotation));
 
 	BloodTemplate = class'AOCWeapon'.default.ImpactBloodTemplates[0];
 	if (BloodTemplate != None) {
-		BloodMomentum = Rotator( 95500 * Momentum );
+		BloodMomentum = Rotator(500 * frontDir);
 		BloodMomentum.Roll = 0;
-		HitEffect = Spawn(class'UTGame.UTEmit_BloodSpray', self,, HitLocation, BloodMomentum);
+		HitEffect = Spawn(class'UTGame.UTEmit_BloodSpray', self,, headPos + frontDir * 50, BloodMomentum);
 		HitEffect.SetTemplate(BloodTemplate, true);
+		HitEffect.particleSystemComponent.setscale( 5 );
+		HitEffect.particleSystemComponent.activateSystem();
+		HitEffect.ForceNetRelevant();
+		HitEffect.AttachTo(self, 'SK_Head');
+
+		HitEffect = Spawn(class'UTGame.UTEmit_BloodSpray', self,, headPos + frontDir * -20, BloodMomentum * -1);
+		HitEffect.SetTemplate(BloodTemplate, true);
+		HitEffect.particleSystemComponent.setscale( 4 );
+		HitEffect.particleSystemComponent.activateSystem();
+		HitEffect.ForceNetRelevant();
+		HitEffect.AttachTo(self, 'SK_Head');
+
+		HitEffect = Spawn(class'UTGame.UTEmit_BloodSpray', self,, headPos + frontDir * -20, BloodMomentum * -1);
+		HitEffect.SetTemplate(BloodTemplate, true);
+		HitEffect.particleSystemComponent.setscale( 1 );
+		HitEffect.particleSystemComponent.activateSystem();
+		HitEffect.ForceNetRelevant();
 		HitEffect.AttachTo(self, 'SK_Head');
 	}
 }

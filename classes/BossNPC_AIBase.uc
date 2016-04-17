@@ -257,8 +257,6 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
 }
 
 state DoingTask {
-	event BeginState(Name PreviousStateName) {}
-
 	event EndState(Name NextStateName) {m_Pawn.m_IsSprinting = false;}
 
     function DoTask() {
