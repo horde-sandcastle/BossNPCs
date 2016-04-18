@@ -528,8 +528,28 @@ simulated function PlaySound_OuchStrong() {
 
 simulated function PlaySound_Smash() {
     if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
-        self.PlaySound(
-           m_Cues_Smash, true,,, self.Location);
+        self.PlaySound(m_Cues_Smash, true,,, self.Location);
+    }
+}
+
+simulated function PlayEffect_RFootImpact() {
+	local Vector impactPos;
+
+    Mesh.GetSocketWorldLocationAndRotation('FootCrush_Socket', impactPos);
+    PlayEffect_Impact(impactPos);
+}
+
+simulated function PlayEffect_RHandImpact() {
+	local Vector impactPos;
+
+	Mesh.GetSocketWorldLocationAndRotation('Smash_Socket', impactPos);
+	PlayEffect_Impact(impactPos);
+}
+
+simulated function PlayEffect_Impact(vector impactPos) {
+    if (Role != ROLE_Authority || IsLocallyControlled()) {
+        PlaySound(m_Cues_Smash, true,,, Location);
+        WorldInfo.MyEmitterPool.SpawnEmitter(ParticleSystem'Cove.particalsystems.P_Impact',impactPos).setscale(2);
     }
 }
 
