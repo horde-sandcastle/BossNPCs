@@ -34,8 +34,6 @@ var bool appliedKick;
 
 var StaticMeshComponent ballProjComp; // dirtball attached to right hand
 
-var repnotify int hitRepCount;
-
 var bool debug;
 
 `include(Stocks)
@@ -44,19 +42,6 @@ var bool debug;
 
 simulated function float HUD_Overhead_GetHealthBarSizeScale() { return 1.5; }
 simulated function float HUD_Overhead_GetHealthBarAdditionalZOffset() { return 180; }
-
-replication {
-	if ( bNetDirty )
-        hitRepCount;
-}
-
-simulated event ReplicatedEvent(name VarName) {
-    super.ReplicatedEvent(VarName);
-
-    if (VarName == 'hitRepCount') {
-		displayHitEffects();
-    }
-}
 
 simulated event PostBeginPlay() {
 	super.PostBeginPlay();
@@ -383,25 +368,17 @@ event TakeDamage(
 
     local name BestBone;
     local vector BestHitLocation;
-    local SandcastlePawn attacker;
 
-    attacker = SandcastlePawn(InstigatedBy.pawn);
-
-	if(isMason(attacker) && AOCRangeWeapon(attacker.Weapon) == none) {
+	if(AOCRangeWeapon(InstigatedBy.pawn.Weapon) == none) {
 		FindNearestBone(HitLocation, BestBone, BestHitLocation);
 		if (BestBone == 'SK_Head') {
-			hitRepCount++; // to let the client know
 			Damage = damage > maxDmg ? maxDmg : damage;
-			playHitSound(attacker);
-			displayHitEffects();
 			super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
 		}
 	}
 }
 
 simulated function displayHitEffects() {
-	local ParticleSystem BloodTemplate;
-	local UTEmit_HitEffect HitEffect;
 	local rotator BloodMomentum;
 	local Vector headPos;
 	local vector frontDir;
@@ -410,36 +387,16 @@ simulated function displayHitEffects() {
 
 	headPos = Mesh.GetBoneLocation('SK_Head');
 	frontDir = normal(Vector(Rotation));
+	BloodMomentum = Rotator(500 * frontDir);
+	BloodMomentum.Roll = 0;
 
-	BloodTemplate = class'AOCWeapon'.default.ImpactBloodTemplates[0];
-	if (BloodTemplate != None) {
-		BloodMomentum = Rotator(500 * frontDir);
-		BloodMomentum.Roll = 0;
-		HitEffect = Spawn(class'UTGame.UTEmit_BloodSpray', self,, headPos + frontDir * 50, BloodMomentum);
-		HitEffect.SetTemplate(BloodTemplate, true);
-		HitEffect.particleSystemComponent.setscale( 5 );
-		HitEffect.particleSystemComponent.activateSystem();
-		HitEffect.ForceNetRelevant();
-		HitEffect.AttachTo(self, 'SK_Head');
-
-		HitEffect = Spawn(class'UTGame.UTEmit_BloodSpray', self,, headPos + frontDir * -20, BloodMomentum * -1);
-		HitEffect.SetTemplate(BloodTemplate, true);
-		HitEffect.particleSystemComponent.setscale( 4 );
-		HitEffect.particleSystemComponent.activateSystem();
-		HitEffect.ForceNetRelevant();
-		HitEffect.AttachTo(self, 'SK_Head');
-
-		HitEffect = Spawn(class'UTGame.UTEmit_BloodSpray', self,, headPos + frontDir * -20, BloodMomentum * -1);
-		HitEffect.SetTemplate(BloodTemplate, true);
-		HitEffect.particleSystemComponent.setscale( 1 );
-		HitEffect.particleSystemComponent.activateSystem();
-		HitEffect.ForceNetRelevant();
-		HitEffect.AttachTo(self, 'SK_Head');
-	}
+	displayBlood(headPos + frontDir * 50, BloodMomentum, 5);
+	displayBlood(headPos + frontDir * -20, BloodMomentum * -1, 4);
+	displayBlood(headPos + frontDir * -20, BloodMomentum * -1, 2);
 }
 
 simulated function String GetNotifyKilledHudMarkupText() {
-	return "<font color=\"#B27500\">Cyclops</font>";
+	return "<font color=\"#800000\">Cyclops</font>";
 }
 
 simulated function PlaySound_Breathing() {

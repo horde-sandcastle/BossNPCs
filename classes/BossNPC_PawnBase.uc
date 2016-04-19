@@ -40,6 +40,8 @@ var SoundCue m_FarFootStepSounds;
 var private int m_FootStep;
 var private int m_FarFootStep;
 
+var repnotify int hitRepCount;
+
 var repnotify bool m_dying;
 var bool m_rotateToGround;
 var ParticleSystemComponent deathDust;
@@ -62,24 +64,9 @@ simulated function postBeginPlay() {
 	DisableAnimationLodding();
 }
 
-
-replication
-{
+replication {
 	if (bNetDirty && Role == ROLE_Authority)
-		m_Speed, m_IsSprinting, m_SprintSpeed, m_IsInCombat, m_dying, m_CustomAnimSeqName, m_CustomAnimReset, m_CustomAnimID;
-}
-
-simulated event PostInitAnimTree(SkeletalMeshComponent SkelComp) {
-    super.PostInitAnimTree(SkelComp);
-if (SkelComp == Mesh)
-	{
-    m_CustomAnimBlend = AnimNodeBlend(Mesh.FindAnimNode('CustomAnim_Blend'));
-    m_CustomAnimSequence = AnimNodeSequence(Mesh.FindAnimNode('CustomAnim_Sequence'));
-    m_CustomAnimSequence.bCauseActorAnimEnd = true;
-
-	m_CustomAnimBlend.bSkipBlendWhenNotRendered = false;}
-
-	self.DisableAnimationLodding();
+		hitRepCount, m_Speed, m_IsSprinting, m_SprintSpeed, m_IsInCombat, m_dying, m_CustomAnimSeqName, m_CustomAnimReset, m_CustomAnimID;
 }
 
 simulated event ReplicatedEvent(name VarName) {
@@ -88,8 +75,24 @@ simulated event ReplicatedEvent(name VarName) {
 	else if (VarName == 'm_dying') {
 		GotoState('Dying');
 	}
+	else if (VarName == 'hitRepCount') {
+		displayHitEffects();
+    }
 
     super.ReplicatedEvent(VarName);
+}
+
+simulated event PostInitAnimTree(SkeletalMeshComponent SkelComp) {
+    super.PostInitAnimTree(SkelComp);
+	if (SkelComp == Mesh) {
+	    m_CustomAnimBlend = AnimNodeBlend(Mesh.FindAnimNode('CustomAnim_Blend'));
+	    m_CustomAnimSequence = AnimNodeSequence(Mesh.FindAnimNode('CustomAnim_Sequence'));
+	    m_CustomAnimSequence.bCauseActorAnimEnd = true;
+
+		m_CustomAnimBlend.bSkipBlendWhenNotRendered = false;
+	}
+
+	self.DisableAnimationLodding();
 }
 
 simulated function float GetMoveSpeed() {
@@ -175,6 +178,97 @@ simulated event PlayFootStepSound(int FootDown)
     }
 }
 
+simulated function playHitSound(AocPawn InstigatedBy) {
+	local SoundCue ImpactSound;
+	local AOCMeleeWeapon MeleeOwnerWeapon;
+
+	MeleeOwnerWeapon = AOCMeleeWeapon(InstigatedBy.Weapon);
+	ImpactSound = MeleeOwnerWeapon.ImpactSounds[AocWeapon(InstigatedBy.Weapon).AOCWepAttachment.LastSwingType].Light;
+	if(ImpactSound != none) {
+		InstigatedBy.StopWeaponSounds();
+		InstigatedBy.PlayServerSoundWeapon( ImpactSound );
+	}
+}
+
+/**
+* server only
+*/
+event TakeDamage(
+    int Damage,
+    Controller InstigatedBy,
+    vector HitLocation,
+    vector Momentum,
+    class<DamageType> DamageType,
+    optional TraceHitInfo myHitInfo,
+    optional Actor DamageCauser) {
+
+    local SandcastlePawn attacker;
+    attacker = SandcastlePawn(InstigatedBy.pawn);
+
+	if(isMason(attacker)) {
+		hitRepCount++; // to let the client know
+		playHitSound(attacker);
+		displayHitEffects();
+		super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
+	}
+}
+
+simulated function displayHitEffects() {
+	local rotator BloodMomentum;
+	local vector frontDir;
+
+	if (self.Role == ROLE_Authority && !self.IsLocallyControlled()) return;
+
+	frontDir = normal(Vector(Rotation));
+	BloodMomentum = Rotator(500 * frontDir);
+	BloodMomentum.Roll = 0;
+
+	displayBlood(Location + frontDir * 50, BloodMomentum, 2);
+}
+
+simulated function displayBlood(vector origin, rotator momentum, float scale) {
+	local ParticleSystem BloodTemplate;
+	local UTEmit_HitEffect HitEffect;
+
+	BloodTemplate = class'AOCWeapon'.default.ImpactBloodTemplates[0];
+	if (BloodTemplate != None) {
+		HitEffect = Spawn(class'UTGame.UTEmit_BloodSpray', self,, , momentum);
+		HitEffect.SetTemplate(BloodTemplate, true);
+		HitEffect.particleSystemComponent.setscale(scale);
+		HitEffect.particleSystemComponent.activateSystem();
+		HitEffect.ForceNetRelevant();
+		//HitEffect.AttachTo(self, 'SK_Head');
+	}
+}
+
+simulated function bool FindNearestBone(vector InitialHitLocation, out name BestBone, out vector BestHitLocation) {
+	local int i, dist, BestDist;
+	local vector BoneLoc;
+	local name BoneName;
+
+	if (Mesh.PhysicsAsset != none) {
+		for (i=0;i<Mesh.PhysicsAsset.BodySetup.Length;i++) {
+			BoneName = Mesh.PhysicsAsset.BodySetup[i].BoneName;
+			// If name is not empty and bone exists in this mesh
+			if ( BoneName != '' && Mesh.MatchRefBone(BoneName) != INDEX_NONE) {
+				BoneLoc = Mesh.GetBoneLocation(BoneName);
+				Dist = VSize(InitialHitLocation - BoneLoc);
+				if ( i==0 || Dist < BestDist ) {
+					BestDist = Dist;
+					BestBone = Mesh.PhysicsAsset.BodySetup[i].BoneName;
+					BestHitLocation = BoneLoc;
+				}
+			}
+		}
+
+		if (BestBone != '') {
+			return true;
+		}
+	}
+	return false;
+}
+
+
 function gibbedBy(actor Other) { }
 
 simulated function bool Died(Controller Killer, class<DamageType> DamageType, vector HitLocation) {
@@ -214,44 +308,6 @@ Begin:
     //InitRagdoll(); <-- not working too well, makes cyclops deflate like a baloon
 }
 
-simulated function playHitSound(AocPawn InstigatedBy) {
-	local SoundCue ImpactSound;
-	local AOCMeleeWeapon MeleeOwnerWeapon;
-
-	MeleeOwnerWeapon = AOCMeleeWeapon(InstigatedBy.Weapon);
-	ImpactSound = MeleeOwnerWeapon.ImpactSounds[AocWeapon(InstigatedBy.Weapon).AOCWepAttachment.LastSwingType].Light;
-	if(ImpactSound != none) {
-		InstigatedBy.StopWeaponSounds();
-		InstigatedBy.PlayServerSoundWeapon( ImpactSound );
-	}
-}
-
-simulated function bool FindNearestBone(vector InitialHitLocation, out name BestBone, out vector BestHitLocation) {
-	local int i, dist, BestDist;
-	local vector BoneLoc;
-	local name BoneName;
-
-	if (Mesh.PhysicsAsset != none) {
-		for (i=0;i<Mesh.PhysicsAsset.BodySetup.Length;i++) {
-			BoneName = Mesh.PhysicsAsset.BodySetup[i].BoneName;
-			// If name is not empty and bone exists in this mesh
-			if ( BoneName != '' && Mesh.MatchRefBone(BoneName) != INDEX_NONE) {
-				BoneLoc = Mesh.GetBoneLocation(BoneName);
-				Dist = VSize(InitialHitLocation - BoneLoc);
-				if ( i==0 || Dist < BestDist ) {
-					BestDist = Dist;
-					BestBone = Mesh.PhysicsAsset.BodySetup[i].BoneName;
-					BestHitLocation = BoneLoc;
-				}
-			}
-		}
-
-		if (BestBone != '') {
-			return true;
-		}
-	}
-	return false;
-}
 
 function String GetNotifyKilledHudMarkupText() {
 	return "<font color=\"#B27500\">Boss NPC</font>";
