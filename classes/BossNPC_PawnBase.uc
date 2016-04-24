@@ -40,7 +40,8 @@ var SoundCue m_FarFootStepSounds;
 var private int m_FootStep;
 var private int m_FarFootStep;
 
-var repnotify int hitRepCount;
+var repnotify int hitNormalRepCount;
+var repnotify int hitStrongRepCount;
 
 var repnotify bool m_dying;
 var bool m_rotateToGround;
@@ -48,6 +49,8 @@ var ParticleSystemComponent deathDust;
 
 var(NPC) SkeletalMeshComponent NPCMesh;
 var(NPC) class<AIController> NPCController;
+// set by controller
+var DIFFICULTY_MODE difficulty;
 
 `include(Stocks)
 `include(Log)
@@ -66,7 +69,7 @@ simulated function postBeginPlay() {
 
 replication {
 	if (bNetDirty && Role == ROLE_Authority)
-		hitRepCount, m_Speed, m_IsSprinting, m_SprintSpeed, m_IsInCombat, m_dying, m_CustomAnimSeqName, m_CustomAnimReset, m_CustomAnimID;
+		difficulty, hitNormalRepCount, hitStrongRepCount, m_Speed, m_IsSprinting, m_SprintSpeed, m_IsInCombat, m_dying, m_CustomAnimSeqName, m_CustomAnimReset, m_CustomAnimID;
 }
 
 simulated event ReplicatedEvent(name VarName) {
@@ -75,9 +78,13 @@ simulated event ReplicatedEvent(name VarName) {
 	else if (VarName == 'm_dying') {
 		GotoState('Dying');
 	}
-	else if (VarName == 'hitRepCount') {
-		displayHitEffects();
+	else if (VarName == 'hitNormalRepCount') {
+		displayHitEffects(false);
     }
+    else if (VarName == 'hitStrongRepCount') {
+		displayHitEffects(true);
+    }
+
 
     super.ReplicatedEvent(VarName);
 }
@@ -178,7 +185,7 @@ simulated event PlayFootStepSound(int FootDown)
     }
 }
 
-simulated function playHitSound(AocPawn InstigatedBy) {
+simulated function playHitSound(AocPawn InstigatedBy, bool strongHit) {
 	local SoundCue ImpactSound;
 	local AOCMeleeWeapon MeleeOwnerWeapon;
 
@@ -202,20 +209,34 @@ event TakeDamage(
     optional TraceHitInfo myHitInfo,
     optional Actor DamageCauser) {
 
+	local bool StrongHit;
     local SandcastlePawn attacker;
     attacker = SandcastlePawn(InstigatedBy.pawn);
 
 	if(isMason(attacker)) {
-		hitRepCount++; // to let the client know
-		playHitSound(attacker);
-		displayHitEffects();
+		StrongHit = isStrongHit(damage);
+		playHitSound(attacker, StrongHit);
+		displayHitEffects(StrongHit);
 		super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
 	}
 }
 
-simulated function displayHitEffects() {
+/**
+*  decides which effects to play (sounds + blood) and if the npc gets stunned by the hit.
+*/
+function bool isStrongHit(int damage) {
+	return damage >= 80;
+}
+
+simulated function displayHitEffects(bool strongHit) {
 	local rotator BloodMomentum;
 	local vector frontDir;
+
+	// to let the client know
+	if (strongHit)
+		hitStrongRepCount++;
+	else
+		hitNormalRepCount++;
 
 	if (self.Role == ROLE_Authority && !self.IsLocallyControlled()) return;
 
@@ -223,7 +244,7 @@ simulated function displayHitEffects() {
 	BloodMomentum = Rotator(500 * frontDir);
 	BloodMomentum.Roll = 0;
 
-	displayBlood(Location + frontDir * 50, BloodMomentum, 2);
+	displayBlood(Location + frontDir * 50, BloodMomentum, strongHit ? 3 : 1);
 }
 
 simulated function displayBlood(vector origin, rotator momentum, float scale) {

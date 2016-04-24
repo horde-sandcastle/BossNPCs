@@ -112,6 +112,25 @@ state Hit {
     }
 }
 
+const STUN_DURATION = 11;
+
+state Stunned {
+
+	function bool BeginStunSequence(out float stunDuration) {
+		m_Pawn.PlayCustomAnim('Knelling_in', true);
+		stunDuration = STUN_DURATION;
+        return true;
+    }
+
+    function playIdleStun() {
+        m_Pawn.PlayCustomAnim('Knelling_idle', true);
+    }
+
+    function EndStunSequence() {
+		m_Pawn.PlayCustomAnim('Knelling_out', true);
+    }
+}
+
 static private function name GetAttackSequenceName(ECyclopeAttack attackID) {
     switch (attackID) {
     case CYCLOPE_ATTACK_SMASH:

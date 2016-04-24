@@ -353,6 +353,7 @@ function SpawnProjectile( Vector startLoc, vector targetLoc ) {
 }
 
 const maxDmg = 50;
+const minDmg = 5;
 
 /**
 * server only
@@ -368,31 +369,68 @@ event TakeDamage(
 
     local name BestBone;
     local vector BestHitLocation;
+    local bool smallHit;
 
-	if(AOCRangeWeapon(InstigatedBy.pawn.Weapon) == none) {
-		FindNearestBone(HitLocation, BestBone, BestHitLocation);
-		if (BestBone == 'SK_Head') {
-			Damage = damage > maxDmg ? maxDmg : damage;
+	switch (difficulty) {
+		case EDM_NORMAL:
+			smallHit = AOCRangeWeapon(InstigatedBy.pawn.Weapon) != none;
+			if (!smallHit) {
+				FindNearestBone(HitLocation, BestBone, BestHitLocation);
+				if (BestBone != 'SK_Head') {
+					smallHit = true;
+				}
+			}
+
+			Damage = smallHit ? minDmg : maxDmg;
 			super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
-		}
+		break;
+		case EDM_HARD:
+			if(AOCRangeWeapon(InstigatedBy.pawn.Weapon) == none) {
+				FindNearestBone(HitLocation, BestBone, BestHitLocation);
+				if (BestBone == 'SK_Head') {
+					Damage = damage > maxDmg ? maxDmg : damage;
+					super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
+				}
+			}
+			break;
 	}
 }
 
-simulated function displayHitEffects() {
+const HitsUntilStun = 35;
+
+simulated function bool isStrongHit(int damage) {
+	local bool enoughHits;
+	local bool hardDmg;
+
+	enoughHits = hitNormalRepCount > 0 && hitNormalRepCount % HitsUntilStun == 0;
+	hardDmg = damage > class'BossNPC_Cyclope'.const.minDmg;
+
+	return (hardDmg || enoughHits) && difficulty < EDM_HARD;
+}
+
+simulated function displayHitEffects(bool StrongHit) {
 	local rotator BloodMomentum;
 	local Vector headPos;
 	local vector frontDir;
 
+	// to let the client know
+	if (strongHit)
+		hitStrongRepCount++;
+	else
+		hitNormalRepCount++;
+
 	if (self.Role == ROLE_Authority && !self.IsLocallyControlled()) return;
 
-	headPos = Mesh.GetBoneLocation('SK_Head');
-	frontDir = normal(Vector(Rotation));
-	BloodMomentum = Rotator(500 * frontDir);
-	BloodMomentum.Roll = 0;
+	if (StrongHit) {
+		headPos = Mesh.GetBoneLocation('SK_Head');
+		frontDir = normal(Vector(Rotation));
+		BloodMomentum = Rotator(500 * frontDir);
+		BloodMomentum.Roll = 0;
 
-	displayBlood(headPos + frontDir * 50, BloodMomentum, 5);
-	displayBlood(headPos + frontDir * -20, BloodMomentum * -1, 4);
-	displayBlood(headPos + frontDir * -20, BloodMomentum * -1, 2);
+		displayBlood(headPos + frontDir * 50, BloodMomentum, 5);
+		displayBlood(headPos + frontDir * -20, BloodMomentum * -1, 4);
+		displayBlood(headPos + frontDir * -20, BloodMomentum * -1, 2);
+	}
 }
 
 simulated function String GetNotifyKilledHudMarkupText() {

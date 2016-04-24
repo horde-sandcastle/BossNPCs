@@ -1,5 +1,10 @@
 class BossNPC_AIBase extends AIController;
 
+enum DIFFICULTY_MODE {
+	EDM_NORMAL,
+	EDM_HARD
+};
+
 var PrivateWrite BossNPC_PawnBase m_Pawn;
 
 var Vector2D m_WanderDelay;
@@ -40,6 +45,7 @@ var const byte noRestrictedAttack;
 var() bool autoAggro;
 // default: false, if true the nearest enemy pawns is picked as a new target instead of visible pawns
 var() bool perfectEnemyKnowledge;
+var() DIFFICULTY_MODE difficulty;
 
 `include(Stocks)
 `include(Log)
@@ -51,8 +57,14 @@ event Possess(Pawn inPawn, bool bVehicleTransition) {
     m_Pawn = BossNPC_PawnBase(inPawn);
     m_Pawn.SetMovementPhysics();
     self.SetTickIsDisabled(false);
+	setDifficulty(difficulty);
 
     GotoState('Idle',, true, false);
+}
+
+function setDifficulty(DIFFICULTY_MODE df) {
+	difficulty = df;
+	m_Pawn.difficulty = df;
 }
 
 function RotateTo(Vector Dir) {
@@ -243,7 +255,7 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
     local float targetAngle;
     super.NotifyTakeHit(InstigatedBy, HitLocation, Damage, damageType, Momentum);
 
-    if (m_Dead)// || IsInState('Attacking', true))
+    if (m_Dead || IsInState('Stunned', true))
         return;
 
     dirToTarget = Normal(m_Pawn.Location - HitLocation);
@@ -252,7 +264,10 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
     m_HitAngle = Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776;
 
     if (m_NextHitDelay <= 0) {
-        PushState('Hit');
+        if (m_pawn.isStrongHit(damage))
+            GoToState('Stunned');
+        else
+        	PushState('Hit');
     }
 }
 
@@ -287,7 +302,7 @@ Begin:
 goto 'Begin';
 }
 
-state Idle {
+auto state Idle {
     event BeginState(Name PreviousStateName) {
         m_Pawn.m_IsInCombat = false;
         m_CombatTarget = none;
@@ -434,9 +449,43 @@ Begin:
         FinishAnim(m_Pawn.m_CustomAnimSequence);
         m_NextHitDelay = RandRange(HIT_DEALY_MIN, HIT_DELAY_MAX);
         autoAggro = true;
+        if (difficulty == EDM_NORMAL) {
+
+        }
     }
 
     PopState();
+}
+
+state Stunned {
+	local float beginTime;
+	local float stunDurationSec;
+
+	function bool BeginStunSequence(out float stunDuration) {
+		stunDurationSec = stunDuration;
+        return false;
+    }
+
+    function playIdleStun(){}
+    function EndStunSequence();
+
+Begin:
+	beginTime = worldinfo.TimeSeconds;
+	m_pawn.acceleration = vect(0,0,0);
+
+    if (BeginStunSequence(stunDurationSec)) {
+        FinishAnim(m_Pawn.m_CustomAnimSequence);
+        while (worldinfo.TimeSeconds - beginTime < stunDurationSec) {
+        	playIdleStun();
+        	FinishAnim(m_Pawn.m_CustomAnimSequence);
+        }
+        EndStunSequence();
+        FinishAnim(m_Pawn.m_CustomAnimSequence);
+        m_NextHitDelay = RandRange(HIT_DEALY_MIN, HIT_DELAY_MAX);
+        autoAggro = true;
+    }
+
+    GotoState('Idle');
 }
 
 function ResetAttack()
@@ -494,6 +543,7 @@ function _Dead() {
 
 defaultproperties
 {
+	difficulty = EDM_NORMAL
 	autoAggro = true
 	m_WanderDelay = (X=2, Y=6)
 	m_WanderDuration = (X=2, Y=6)
