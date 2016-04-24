@@ -25,6 +25,7 @@ var SoundCue m_Cues_Whoosh;
 var SoundCue m_Cues_Crushed;
 var SoundCue m_Cues_Foot_Kicked_Small;
 var SoundCue m_Cues_Foot_Kicked_Big;
+var SoundCue m_Cues_Hit_Enemy;
 
 var bool  m_BreathEnabled;
 var float m_BreathDelay;
@@ -34,7 +35,7 @@ var bool appliedKick;
 
 var StaticMeshComponent ballProjComp; // dirtball attached to right hand
 
-var bool debug;
+var int lastHitNormalCount; // remember amount of normal hits which caused us to get stunned
 
 `include(Stocks)
 `include(Log)
@@ -80,14 +81,15 @@ simulated function bool AttackPawn(Pawn target, byte attackType, vector damageSo
 	if(BossNpcAttackInfos[attackType].playTumble)
 		SandcastlePawn(target).playTumble();
 
-    if(debug) Lognotify("Dmg Scr Dist: "$VSize(damageSourcePos - target.location));
-
 	return true;
 }
+
+const SOUND_DMG_THRESHOLD = 70;
 
 function applyAttackDmg(Pawn target, byte attack, vector HurtOrigin) {
 	local BossNpcAttackInfo attc;
 	local int index;
+	local int hpOld;
 
 	// even though this func is not simulated it is still executed with lesser authority!!
 	if (role < role_authority)  return;
@@ -97,7 +99,9 @@ function applyAttackDmg(Pawn target, byte attack, vector HurtOrigin) {
 		logerror("Boss npc attack with id "$attack$" is unknown! Add it to the include file.");
 		return;
 	}
+
 	attc = BossNpcAttackInfos[index];
+	hpOld = target.health;
 	target.TakeRadiusDamage(
         Controller,
         attc.BaseDamage,
@@ -112,6 +116,8 @@ function applyAttackDmg(Pawn target, byte attack, vector HurtOrigin) {
      if (attack == CYCLOPE_ATTACK_FOOT_CRUSH && target.health <= 0) {
          playSound_Crushed(target);
      }
+     else if (attack > CYCLOPE_ATTACK_FORWARD && (hpOld - target.health > SOUND_DMG_THRESHOLD))
+         PlaySound_Hit_Enemy(target);
 }
 
 simulated function ApplyAttack_Smash_Impact() {
@@ -352,6 +358,7 @@ function SpawnProjectile( Vector startLoc, vector targetLoc ) {
 	}
 }
 
+const critDmg = 70;
 const maxDmg = 50;
 const minDmg = 5;
 
@@ -375,7 +382,7 @@ event TakeDamage(
 		case EDM_NORMAL:
 			smallHit = AOCRangeWeapon(InstigatedBy.pawn.Weapon) != none;
 			if (!smallHit) {
-				FindNearestBone(HitLocation, BestBone, BestHitLocation);
+				FindNearestBone(self, HitLocation, BestBone, BestHitLocation);
 				if (BestBone != 'SK_Head') {
 					smallHit = true;
 				}
@@ -386,7 +393,7 @@ event TakeDamage(
 		break;
 		case EDM_HARD:
 			if(AOCRangeWeapon(InstigatedBy.pawn.Weapon) == none) {
-				FindNearestBone(HitLocation, BestBone, BestHitLocation);
+				FindNearestBone(self, HitLocation, BestBone, BestHitLocation);
 				if (BestBone == 'SK_Head') {
 					Damage = damage > maxDmg ? maxDmg : damage;
 					super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
@@ -402,7 +409,9 @@ simulated function bool isStrongHit(int damage) {
 	local bool enoughHits;
 	local bool hardDmg;
 
-	enoughHits = hitNormalRepCount > 0 && hitNormalRepCount % HitsUntilStun == 0;
+	enoughHits = (hitNormalRepCount - lastHitNormalCount) > 0 && hitNormalRepCount % HitsUntilStun == 0;
+	if (enoughHits)
+		lastHitNormalCount = hitNormalRepCount;
 	hardDmg = damage > class'BossNPC_Cyclope'.const.minDmg;
 
 	return (hardDmg || enoughHits) && difficulty < EDM_HARD;
@@ -575,15 +584,6 @@ simulated function PlaySound_Whoosh() {
     }
 }
 
-/**
-* triggered by server dmg function. Requires replication.
-*/
-function PlaySound_Crushed(pawn victim) {
-	if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
-        self.PlaySound(m_Cues_Crushed, false,,, victim.Location);
-    }
-}
-
 simulated function PlaySound_Foot_Kicked_Small() {
 	if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(m_Cues_Foot_Kicked_Small, true,,, self.Location);
@@ -594,6 +594,17 @@ simulated function PlaySound_Foot_Kicked_Big() {
 	if (self.Role != ROLE_Authority || self.IsLocallyControlled()) {
         self.PlaySound(m_Cues_Foot_Kicked_Big, true,,, self.Location);
     }
+}
+
+/**
+* triggered by server dmg function. Requires replication.
+*/
+function PlaySound_Crushed(pawn victim) {
+   self.PlaySound(m_Cues_Crushed, false,,, victim.Location);
+}
+
+function PlaySound_Hit_Enemy(pawn victim) {
+   self.PlaySound(m_Cues_Hit_Enemy, false,,, victim.Location);
 }
 
 defaultproperties
@@ -650,6 +661,5 @@ defaultproperties
     m_Cues_Crushed = SoundCue'A_Impacts_Melee.Giant_stomped'
     m_Cues_Foot_Kicked_Small = SoundCue'A_Phys_Mat_Impacts.Buckler_Blocking'
     m_Cues_Foot_Kicked_Big = SoundCue'A_Impacts_Melee.head_explodie'
-
-    debug = false
+    m_Cues_Hit_Enemy = SoundCue'A_Impacts_Missile.Axe_Heavy'
 }

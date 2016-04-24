@@ -23,73 +23,44 @@ struct AttackToDist {
 	var float Dist;
 };
 
-var name m_CurrentTurnSeqName;
-
 var bool           m_SmashAttackEnabled;
 var ECyclopeAttack m_CurrentAttack;
 
-var bool debug;
-
 `include(Stocks)
 `include(Log)
+`include(PawnUtils)
 
-function ResetAttackDual()
-{
-	m_SmashAttackEnabled = true;
-}
+state Combating {
+    function TurnToTarget(float Angle) {
+        local name TurnSeq;
+    	super.TurnToTarget(Angle);
 
-state Turn {
-
-Begin:
-	m_Pawn.PlayCustomAnim(m_CurrentTurnSeqName);
-    FinishAnim(m_Pawn.m_CustomAnimSequence);
-
-    PopState();
-}
-
-state Combating
-{
-    function TurnToTarget(float Angle)
-    {
-        super.TurnToTarget(Angle);
-
-        if (Abs(angle) > 15)
-        {
-	        if (Angle < 0)
-	        {
-	            if (Angle <= -60)
-	            {
-	            	if (Angle < -120)
-	            	{
-                       m_CurrentTurnSeqName = 'Turn_180_Left';
-	            	}
-	            	else
-	            	{
-	                   m_CurrentTurnSeqName = 'Turn_90_Left';
-	            	}
-	            }
-	            else
-	                m_CurrentTurnSeqName = 'Turn_45_Left';
-	        }
-	        else
-	        {
-	            if (Angle >= 60)
-	            {
-	               if (Angle > 120)
-	               {
-                       m_CurrentTurnSeqName = 'Turn_180_Right';
-	               }
-	               else
-	               {
-	                   m_CurrentTurnSeqName = 'Turn_90_Right';
-	               }
-	            }
-	            else
-	            	m_CurrentTurnSeqName = 'Turn_45_Right';
-	        }
-
-	        PushState('Turn');
+        if (Angle < -15) {
+            if (Angle <= -60) {
+            	if (Angle < -120) {
+                   TurnSeq = 'Turn_180_Left';
+            	}
+            	else {
+                   TurnSeq = 'Turn_90_Left';
+            	}
+            }
+            else
+                TurnSeq = 'Turn_45_Left';
         }
+        else if (Angle > 15) {
+            if (Angle >= 60) {
+               if (Angle > 120) {
+                   TurnSeq = 'Turn_180_Right';
+               }
+               else{
+                   TurnSeq = 'Turn_90_Right';
+               }
+            }
+            else
+            	TurnSeq = 'Turn_45_Right';
+        }
+
+        m_Pawn.PlayCustomAnim(TurnSeq);
     }
 }
 
@@ -112,13 +83,10 @@ state Hit {
     }
 }
 
-const STUN_DURATION = 11;
-
 state Stunned {
 
-	function bool BeginStunSequence(out float stunDuration) {
+	function bool BeginStunSequence() {
 		m_Pawn.PlayCustomAnim('Knelling_in', true);
-		stunDuration = STUN_DURATION;
         return true;
     }
 
@@ -127,7 +95,10 @@ state Stunned {
     }
 
     function EndStunSequence() {
-		m_Pawn.PlayCustomAnim('Knelling_out', true);
+        if (receivedHit)
+            m_Pawn.PlayCustomAnim('Die_impaled', true);
+        else
+			m_Pawn.PlayCustomAnim('Knelling_out', true);
     }
 }
 
@@ -168,7 +139,6 @@ static private function name GetAttackSequenceName(ECyclopeAttack attackID) {
 state Attacking {
     function bool DecideAttack(out float Cooldown, out name seq) {
         local Vector dirToTarget;
-        local Vector targetLoc;
         local float dist;
         local float targetAngle;
         local ECyclopeAttack attack;
@@ -176,13 +146,9 @@ state Attacking {
         Cooldown = 0.8;
 
         if( activeTask != none )
-            targetLoc = activeTask.location;
+            GetPawnRelations(m_pawn, activeTask, targetAngle, dirToTarget, dist);
         else
-            targetLoc = m_CombatTarget.location;
-
-        dirToTarget = Normal2D(targetLoc - m_Pawn.Location);
-        dist = VSize2D(targetLoc - m_Pawn.Location);
-        targetAngle = NOZDot(Vector(m_Pawn.Rotation), dirToTarget);
+            GetPawnRelations(m_pawn, m_CombatTarget, targetAngle, dirToTarget, dist);
 
         if (dist > m_CombatChaseEndDistance) {
 			attack = CYCLOPE_ATTACK_THROW_GROUND;
@@ -191,8 +157,6 @@ state Attacking {
          	attack = ECyclopeAttack(restrictedAttack);
         }
         else {
-            targetAngle = Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776;
-            if(debug) Lognotify("Attack Dist: "$dist$", angle: "$targetAngle);
             attack = getSideAttack(targetAngle);
             if (attack == -1) {
                 attack = getAttackForDist(dist);
@@ -205,6 +169,7 @@ state Attacking {
         }
 
         m_CurrentAttack = attack;
+
         seq = GetAttackSequenceName(m_CurrentAttack);
         return true;
     }
@@ -217,19 +182,19 @@ state Attacking {
         }
 
         if (targetAngle < -45) {
-            if (targetAngle < -75) {
-                attack = CYCLOPE_ATTACK_LEFT;
+            if (targetAngle < -60) {
+                attack = CYCLOPE_ATTACK_SIDE_LEFT;
             }
             else {
-                attack = CYCLOPE_ATTACK_SIDE_LEFT;
+                attack = CYCLOPE_ATTACK_LEFT;
             }
         }
         else if (targetAngle > +45) {
-            if (targetAngle > +75) {
-                attack = CYCLOPE_ATTACK_RIGHT;
+            if (targetAngle > +60) {
+                attack = CYCLOPE_ATTACK_SIDE_RIGHT;
             }
             else {
-                attack = CYCLOPE_ATTACK_SIDE_RIGHT;
+                attack = CYCLOPE_ATTACK_RIGHT;
             }
         }
 
@@ -298,6 +263,10 @@ state Attacking {
     }
 }
 
+function ResetAttackDual() {
+	m_SmashAttackEnabled = true;
+}
+
 defaultproperties
 {
 	m_SeeRadius = 50000000
@@ -307,6 +276,4 @@ defaultproperties
     m_CombatChaseSprintDistance = 1000
 
     m_SmashAttackEnabled = true
-
-    debug = false
 }

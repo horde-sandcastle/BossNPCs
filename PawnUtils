@@ -36,3 +36,53 @@ private static simulated function bool testFamilyFaction(Actor act, EAOCFaction 
 
 	return false;
 }
+
+/**
+* Retieves hitpos and the nearest bone of the pawn which received a hit.
+* return true if a nearest bone was found
+*/
+private static simulated function bool FindNearestBone(Pawn p, vector InitialHitLocation, out name BestBone, out vector BestHitLocation) {
+	local int i, dist, BestDist;
+	local vector BoneLoc;
+	local name BoneName;
+
+	if (p.Mesh.PhysicsAsset != none) {
+		for (i = 0; i < p.Mesh.PhysicsAsset.BodySetup.Length; i++) {
+			BoneName = p.Mesh.PhysicsAsset.BodySetup[i].BoneName;
+			// If name is not empty and bone exists in this mesh
+			if ( BoneName != '' && p.Mesh.MatchRefBone(BoneName) != INDEX_NONE) {
+				BoneLoc = p.Mesh.GetBoneLocation(BoneName);
+				Dist = VSize(InitialHitLocation - BoneLoc);
+				if ( i==0 || Dist < BestDist ) {
+					BestDist = Dist;
+					BestBone = p.Mesh.PhysicsAsset.BodySetup[i].BoneName;
+					BestHitLocation = BoneLoc;
+				}
+			}
+		}
+
+		if (BestBone != '') {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+* Retrieves the direction, angle and distance from the reference pawn to the other actor.
+* Z is ignored!
+* The angle is positive when the other actor is to the right of the reference pawn and negative when to the left.
+*/
+private static simulated function GetPawnRelations(Pawn reference, Actor other, optional out float angle, optional out vector dir, optional out float dist) {
+	local vector rightDir;
+	local float orientation;
+
+	dist = VSize2D(other.Location - reference.Location);
+	dir = Normal2D(other.Location - reference.Location);
+
+    angle = NOZDot(Vector(reference.Rotation), dir);
+    angle = Acos(angle) * RadToDeg;
+    rightDir = vector(reference.rotation) cross vect(0,0,1);
+    orientation = rightDir dot Normal(other.Location - reference.Location);
+    angle *= orientation > 0 ? -1 : 1;
+}

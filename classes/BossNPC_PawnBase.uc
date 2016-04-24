@@ -189,9 +189,15 @@ simulated function playHitSound(AocPawn InstigatedBy, bool strongHit) {
 	local SoundCue ImpactSound;
 	local AOCMeleeWeapon MeleeOwnerWeapon;
 
-	MeleeOwnerWeapon = AOCMeleeWeapon(InstigatedBy.Weapon);
-	ImpactSound = MeleeOwnerWeapon.ImpactSounds[AocWeapon(InstigatedBy.Weapon).AOCWepAttachment.LastSwingType].Light;
-	if(ImpactSound != none) {
+	if (strongHit) {
+		MeleeOwnerWeapon = AOCMeleeWeapon(InstigatedBy.Weapon);
+		ImpactSound = MeleeOwnerWeapon.ImpactSounds[AocWeapon(InstigatedBy.Weapon).AOCWepAttachment.LastSwingType].Light;
+	}
+	else {
+		ImpactSound = SoundCue'A_Impacts_Missile.Dagger_Light';
+	}
+
+	if (ImpactSound != none) {
 		InstigatedBy.StopWeaponSounds();
 		InstigatedBy.PlayServerSoundWeapon( ImpactSound );
 	}
@@ -215,6 +221,8 @@ event TakeDamage(
 
 	if(isMason(attacker)) {
 		StrongHit = isStrongHit(damage);
+		if (StrongHit)
+			BossNPC_CyclopeAI(controller).receivedCriticalHit();
 		playHitSound(attacker, StrongHit);
 		displayHitEffects(StrongHit);
 		super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
@@ -224,7 +232,7 @@ event TakeDamage(
 /**
 *  decides which effects to play (sounds + blood) and if the npc gets stunned by the hit.
 */
-function bool isStrongHit(int damage) {
+simulated function bool isStrongHit(int damage) {
 	return damage >= 80;
 }
 
@@ -258,37 +266,8 @@ simulated function displayBlood(vector origin, rotator momentum, float scale) {
 		HitEffect.particleSystemComponent.setscale(scale);
 		HitEffect.particleSystemComponent.activateSystem();
 		HitEffect.ForceNetRelevant();
-		//HitEffect.AttachTo(self, 'SK_Head');
 	}
 }
-
-simulated function bool FindNearestBone(vector InitialHitLocation, out name BestBone, out vector BestHitLocation) {
-	local int i, dist, BestDist;
-	local vector BoneLoc;
-	local name BoneName;
-
-	if (Mesh.PhysicsAsset != none) {
-		for (i=0;i<Mesh.PhysicsAsset.BodySetup.Length;i++) {
-			BoneName = Mesh.PhysicsAsset.BodySetup[i].BoneName;
-			// If name is not empty and bone exists in this mesh
-			if ( BoneName != '' && Mesh.MatchRefBone(BoneName) != INDEX_NONE) {
-				BoneLoc = Mesh.GetBoneLocation(BoneName);
-				Dist = VSize(InitialHitLocation - BoneLoc);
-				if ( i==0 || Dist < BestDist ) {
-					BestDist = Dist;
-					BestBone = Mesh.PhysicsAsset.BodySetup[i].BoneName;
-					BestHitLocation = BoneLoc;
-				}
-			}
-		}
-
-		if (BestBone != '') {
-			return true;
-		}
-	}
-	return false;
-}
-
 
 function gibbedBy(actor Other) { }
 

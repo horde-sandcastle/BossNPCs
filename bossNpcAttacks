@@ -10,7 +10,7 @@ private simulated function initBossNpcAttackInfos() {
 	BossNpcAttackInfoTmp.DamageFalloffExponent = 3;
 	BossNpcAttackInfoTmp.playTumble=true;
 	BossNpcAttackInfos.addItem(BossNpcAttackInfoTmp);
-	
+
 	// CYCLOPE_ATTACK_FOOT_CRUSH
 	BossNpcAttackInfoTmp.ID = 1;
 	BossNpcAttackInfoTmp.BaseDamage = 400;
@@ -21,7 +21,7 @@ private simulated function initBossNpcAttackInfos() {
 	BossNpcAttackInfoTmp.DamageFalloffExponent = 3;
 	BossNpcAttackInfoTmp.playTumble=true;
 	BossNpcAttackInfos.addItem(BossNpcAttackInfoTmp);
-	
+
 	// CYCLOPE_ATTACK_FOOT_KICK
 	BossNpcAttackInfoTmp.ID = 2;
 	BossNpcAttackInfoTmp.BaseDamage = 300;
@@ -43,7 +43,7 @@ private simulated function initBossNpcAttackInfos() {
 	BossNpcAttackInfoTmp.DamageFalloffExponent = 2;
 	BossNpcAttackInfoTmp.playTumble=true;
 	BossNpcAttackInfos.addItem(BossNpcAttackInfoTmp);
-	
+
 	// CYCLOPE_ATTACK_FORWARD_2
 	BossNpcAttackInfoTmp.ID = 4;
 	BossNpcAttackInfoTmp.BaseDamage = 280;
@@ -57,45 +57,45 @@ private simulated function initBossNpcAttackInfos() {
 
 	// CYCLOPE_ATTACK_LEFT
 	BossNpcAttackInfoTmp.ID = 5;
-	BossNpcAttackInfoTmp.BaseDamage = 300;
-	BossNpcAttackInfoTmp.DamageRadius = 300;
+	BossNpcAttackInfoTmp.BaseDamage = 280;
+	BossNpcAttackInfoTmp.DamageRadius = 200;
 	BossNpcAttackInfoTmp.DamageType = class'AOCDmgType_Generic';
 	BossNpcAttackInfoTmp.Momentum = 0;
 	BossNpcAttackInfoTmp.bFullDamage = false;
-	BossNpcAttackInfoTmp.DamageFalloffExponent = 3;
+	BossNpcAttackInfoTmp.DamageFalloffExponent = 1;
 	BossNpcAttackInfoTmp.playTumble=false;
 	BossNpcAttackInfos.addItem(BossNpcAttackInfoTmp);
-	
+
 	// CYCLOPE_ATTACK_RIGHT
 	BossNpcAttackInfoTmp.ID = 6;
-	BossNpcAttackInfoTmp.BaseDamage = 300;
-	BossNpcAttackInfoTmp.DamageRadius = 300;
+	BossNpcAttackInfoTmp.BaseDamage = 280;
+	BossNpcAttackInfoTmp.DamageRadius = 200;
 	BossNpcAttackInfoTmp.DamageType = class'AOCDmgType_Generic';
 	BossNpcAttackInfoTmp.Momentum = 0;
 	BossNpcAttackInfoTmp.bFullDamage = false;
-	BossNpcAttackInfoTmp.DamageFalloffExponent = 3;
+	BossNpcAttackInfoTmp.DamageFalloffExponent = 1;
 	BossNpcAttackInfoTmp.playTumble=false;
 	BossNpcAttackInfos.addItem(BossNpcAttackInfoTmp);
 
     // CYCLOPE_ATTACK_SIDE_LEFT
 	BossNpcAttackInfoTmp.ID = 7;
-	BossNpcAttackInfoTmp.BaseDamage = 300;
-	BossNpcAttackInfoTmp.DamageRadius = 300;
+	BossNpcAttackInfoTmp.BaseDamage = 280;
+	BossNpcAttackInfoTmp.DamageRadius = 200;
 	BossNpcAttackInfoTmp.DamageType = class'AOCDmgType_Generic';
 	BossNpcAttackInfoTmp.Momentum = 0;
 	BossNpcAttackInfoTmp.bFullDamage = false;
-	BossNpcAttackInfoTmp.DamageFalloffExponent = 3;
+	BossNpcAttackInfoTmp.DamageFalloffExponent = 1;
 	BossNpcAttackInfoTmp.playTumble=false;
 	BossNpcAttackInfos.addItem(BossNpcAttackInfoTmp);
-	
+
     // CYCLOPE_ATTACK_SIDE_RIGHT
 	BossNpcAttackInfoTmp.ID = 8;
-	BossNpcAttackInfoTmp.BaseDamage = 300;
-	BossNpcAttackInfoTmp.DamageRadius = 300;
+	BossNpcAttackInfoTmp.BaseDamage = 280;
+	BossNpcAttackInfoTmp.DamageRadius = 200;
 	BossNpcAttackInfoTmp.DamageType = class'AOCDmgType_Generic';
 	BossNpcAttackInfoTmp.Momentum = 0;
 	BossNpcAttackInfoTmp.bFullDamage = false;
-	BossNpcAttackInfoTmp.DamageFalloffExponent = 3;
+	BossNpcAttackInfoTmp.DamageFalloffExponent = 1;
 	BossNpcAttackInfoTmp.playTumble=false;
 	BossNpcAttackInfos.addItem(BossNpcAttackInfoTmp);
 
@@ -110,4 +110,3 @@ private simulated function initBossNpcAttackInfos() {
 	BossNpcAttackInfoTmp.playTumble=false;
 	BossNpcAttackInfos.addItem(BossNpcAttackInfoTmp);
 }
-	

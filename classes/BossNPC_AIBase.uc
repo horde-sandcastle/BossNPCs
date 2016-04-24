@@ -293,6 +293,7 @@ Begin:
 	}
 
 	RotateTo(activeTask.location - m_Pawn.location);
+	FinishRotation();
 	// ends the state to do the task when arrived
 	DoTask();
 
@@ -356,54 +357,10 @@ state Wandering {
 
 Begin:
     RotateTo(m_WanderDirection);
+    FinishRotation();
     MoveTo(m_Pawn.Location + m_WanderDirection * m_Pawn.GetMoveSpeed());
 
     goto 'Begin';
-}
-
-state Combating {
-    event BeginState(Name PreviousStateName) {
-        m_Pawn.m_IsInCombat = true;
-    }
-
-    event EndState(Name NextStateName) {}
-
-    function TurnToTarget(float angle) {
-        if (Abs(angle) > 15) {
-	        RotateTo(Normal2D(m_CombatTarget.Location - m_Pawn.Location));
-        }
-    }
-
-    event Tick(float DeltaTime) {
-        local float dist;
-        local Vector dirToTarget;
-        local float targetAngle;
-        local bool doAttack;
-
-        global.Tick(DeltaTime);
-
-        if (m_CombatTarget != none) {
-            if(Rand(11) < 1 && restrictedAttack == noRestrictedAttack) {
-            	doAttack = true; // we may need to check cansee taget here
-            }
-            else {
-                dist = VSize2D(m_CombatTarget.Location - m_Pawn.Location);
-                doAttack = dist <= m_CombatChaseEndDistance;
-            }
-
-            if (doAttack) {
-                dirToTarget = Normal2D(m_CombatTarget.Location - m_Pawn.Location);
-		        targetAngle = NOZDot(Vector(m_Pawn.Rotation), dirToTarget);
-		        TurnToTarget(Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776);
-
-			    if (m_CombatCanAttack) {
-			    	GotoState('Attacking');
-			    }
-            }
-            else
-                GotoState('Chasing');
-        }
-    }
 }
 
 state Chasing {
@@ -424,6 +381,7 @@ Begin:
         }
 
         RotateTo( Normal2D(m_CombatTarget.Location - m_Pawn.Location));
+        FinishRotation();
         MoveToward(m_CombatTarget,, m_CombatChaseEndDistance / 3);
 
         if (dist <= m_CombatChaseEndDistance) {
@@ -433,64 +391,51 @@ Begin:
     }
 }
 
-const HIT_DEALY_MIN = 10;
-const HIT_DELAY_MAX = 15;
+state Combating {
+	local float dist;
+    local Vector dirToTarget;
+    local float targetAngle;
+    local bool doAttack;
+    local bool turning;
 
-state Hit {
-    function bool BeginHitSequence(float angle){
-        return false;
+    event BeginState(Name PreviousStateName) {
+        m_Pawn.m_IsInCombat = true;
     }
 
-Begin:
-	m_pawn.acceleration = vect(0,0,0);
-    FinishRotation();
+    event EndState(Name NextStateName) {}
 
-    if (BeginHitSequence(m_HitAngle)) {
-        FinishAnim(m_Pawn.m_CustomAnimSequence);
-        m_NextHitDelay = RandRange(HIT_DEALY_MIN, HIT_DELAY_MAX);
-        autoAggro = true;
-        if (difficulty == EDM_NORMAL) {
-
+    function TurnToTarget(float angle) {
+        turning = true;
+        if (Abs(angle) > 15) {
+	        RotateTo(Normal2D(m_CombatTarget.Location - m_Pawn.Location));
         }
     }
 
-    PopState();
-}
-
-state Stunned {
-	local float beginTime;
-	local float stunDurationSec;
-
-	function bool BeginStunSequence(out float stunDuration) {
-		stunDurationSec = stunDuration;
-        return false;
-    }
-
-    function playIdleStun(){}
-    function EndStunSequence();
-
 Begin:
-	beginTime = worldinfo.TimeSeconds;
-	m_pawn.acceleration = vect(0,0,0);
+    if (m_CombatTarget != none) {
+        GetPawnRelations(m_pawn, m_CombatTarget, targetAngle, dirToTarget, dist);
 
-    if (BeginStunSequence(stunDurationSec)) {
-        FinishAnim(m_Pawn.m_CustomAnimSequence);
-        while (worldinfo.TimeSeconds - beginTime < stunDurationSec) {
-        	playIdleStun();
-        	FinishAnim(m_Pawn.m_CustomAnimSequence);
+        if (Rand(11) < 1 && restrictedAttack == noRestrictedAttack) {
+        	doAttack = true; // we may need to check cansee taget here
         }
-        EndStunSequence();
-        FinishAnim(m_Pawn.m_CustomAnimSequence);
-        m_NextHitDelay = RandRange(HIT_DEALY_MIN, HIT_DELAY_MAX);
-        autoAggro = true;
+        else {
+            doAttack = dist <= m_CombatChaseEndDistance;
+        }
+
+        if (doAttack) {
+	        TurnToTarget(targetAngle);
+	        // todo: we may need to sync the rotation with the animation
+	        FinishRotation();
+		    if (m_CombatCanAttack) {
+		    	GotoState('Attacking');
+		    }
+        }
+        else
+            GotoState('Chasing');
     }
 
-    GotoState('Idle');
-}
-
-function ResetAttack()
-{
-	m_CombatCanAttack = true;
+	sleep(0.1);
+goto 'Begin';
 }
 
 state Attacking {
@@ -511,8 +456,6 @@ state Attacking {
     }
 
 Begin:
-    FinishRotation();
-
     if (DecideAttack(returnedCooldown, currseq)) {
         m_Pawn.PlayCustomAnim(currseq, true);
 
@@ -531,6 +474,69 @@ Begin:
     else
         GotoState('Idle');
 }
+
+function ResetAttack() {
+	m_CombatCanAttack = true;
+}
+
+const HIT_DEALY_MIN = 10;
+const HIT_DELAY_MAX = 15;
+
+state Hit {
+    function bool BeginHitSequence(float angle){
+        return false;
+    }
+
+Begin:
+	m_pawn.acceleration = vect(0,0,0);
+    FinishRotation();
+
+    if (BeginHitSequence(m_HitAngle)) {
+        FinishAnim(m_Pawn.m_CustomAnimSequence);
+        m_NextHitDelay = RandRange(HIT_DEALY_MIN, HIT_DELAY_MAX);
+        autoAggro = true;
+    }
+
+    PopState();
+}
+
+const DEFAULT_STUN_DURATION = 10;
+
+state Stunned {
+	local float beginTime;
+	local bool receivedHit;
+
+	function bool ContinueStun() {
+        return worldinfo.TimeSeconds - beginTime < DEFAULT_STUN_DURATION && !receivedHit;
+    }
+
+	function bool BeginStunSequence() { return false;}
+    function playIdleStun();
+    function EndStunSequence();
+    function receivedCriticalHit() {
+        receivedHit = true;
+    }
+
+Begin:
+	beginTime = worldinfo.TimeSeconds;
+	m_pawn.acceleration = vect(0,0,0);
+
+	if (BeginStunSequence()) {
+	    FinishAnim(m_Pawn.m_CustomAnimSequence);
+	    while (ContinueStun()) {
+	    	playIdleStun();
+	    	FinishAnim(m_Pawn.m_CustomAnimSequence);
+	    }
+	    EndStunSequence();
+	    FinishAnim(m_Pawn.m_CustomAnimSequence);
+	    m_NextHitDelay = RandRange(HIT_DEALY_MIN, HIT_DELAY_MAX);
+	    autoAggro = true;
+	}
+
+    GotoState('Idle');
+}
+
+function receivedCriticalHit() {}
 
 function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) {
     m_Dead = true;
