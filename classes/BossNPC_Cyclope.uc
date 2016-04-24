@@ -378,6 +378,8 @@ event TakeDamage(
     local vector BestHitLocation;
     local bool smallHit;
 
+    Momentum = vec3(0,0,0);
+
 	switch (difficulty) {
 		case EDM_NORMAL:
 			smallHit = AOCRangeWeapon(InstigatedBy.pawn.Weapon) != none;

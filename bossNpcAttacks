@@ -58,7 +58,7 @@ private simulated function initBossNpcAttackInfos() {
 	// CYCLOPE_ATTACK_LEFT
 	BossNpcAttackInfoTmp.ID = 5;
 	BossNpcAttackInfoTmp.BaseDamage = 280;
-	BossNpcAttackInfoTmp.DamageRadius = 200;
+	BossNpcAttackInfoTmp.DamageRadius = 320;
 	BossNpcAttackInfoTmp.DamageType = class'AOCDmgType_Generic';
 	BossNpcAttackInfoTmp.Momentum = 0;
 	BossNpcAttackInfoTmp.bFullDamage = false;
@@ -69,7 +69,7 @@ private simulated function initBossNpcAttackInfos() {
 	// CYCLOPE_ATTACK_RIGHT
 	BossNpcAttackInfoTmp.ID = 6;
 	BossNpcAttackInfoTmp.BaseDamage = 280;
-	BossNpcAttackInfoTmp.DamageRadius = 200;
+	BossNpcAttackInfoTmp.DamageRadius = 220;
 	BossNpcAttackInfoTmp.DamageType = class'AOCDmgType_Generic';
 	BossNpcAttackInfoTmp.Momentum = 0;
 	BossNpcAttackInfoTmp.bFullDamage = false;
