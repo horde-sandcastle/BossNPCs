@@ -57,7 +57,8 @@ event Possess(Pawn inPawn, bool bVehicleTransition) {
     m_Pawn = BossNPC_PawnBase(inPawn);
     m_Pawn.SetMovementPhysics();
     self.SetTickIsDisabled(false);
-	setDifficulty(difficulty);
+
+	setDifficulty(SandcastleGame(worldinfo.Game).difficultyLvl == LVL_HARD ? EDM_HARD : EDM_NORMAL);
 
     GotoState('Idle',, true, false);
 }
