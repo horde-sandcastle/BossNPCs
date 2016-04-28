@@ -285,6 +285,8 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
 }
 
 state DoingTask {
+	local float moveOffset;
+
 	event EndState(Name NextStateName) {m_Pawn.m_IsSprinting = false;}
 
     function DoTask() {
@@ -310,8 +312,10 @@ Begin:
 	// ends the state to do the task when arrived
 	DoTask();
 
+	if (activeTask.npcInReach > 200.f)
+			moveOffset =  activeTask.npcInReach - 200.f;
     m_Pawn.m_IsSprinting = activeTask.sprint;
-	MoveToward(activeTask, , 150);
+	MoveToward(activeTask, ,moveOffset);
 	sleep(0.5);
 goto 'Begin';
 }
