@@ -40,6 +40,9 @@ var array<NpcTask> allTasks;
 var float taskCheckInterval;
 var float lastTastCheck;
 var const byte noRestrictedAttack;
+
+var Area combatZone; // only targets inside this area are considered
+
 // default: true, denotes if NPC should automatically search for targets and attack
 // if false, the cyclops only attacks after being attacked
 var() bool autoAggro;
@@ -50,6 +53,12 @@ var() DIFFICULTY_MODE difficulty;
 `include(Stocks)
 `include(Log)
 `include(PawnUtils)
+
+event PreBeginPlay() {
+	super.PreBeginPlay();
+	combatZone = new class'Area';
+	// overwrite to set possible area coordinates
+}
 
 event Possess(Pawn inPawn, bool bVehicleTransition) {
 	super.Possess(inPawn, bVehicleTransition);
@@ -77,6 +86,9 @@ function bool IsValidCombatTarget(Pawn targetPawn, bool noticeOnly) {
 	local float dist;
 
 	if (!IsValidTarget(targetPawn, m_pawn))
+		return false;
+
+	if (!combatZone.isInside(targetPawn.location))
 		return false;
 
 	dist = VSize(targetPawn.Location - m_Pawn.Location);

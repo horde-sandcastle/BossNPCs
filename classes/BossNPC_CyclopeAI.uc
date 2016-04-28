@@ -30,6 +30,11 @@ var ECyclopeAttack m_CurrentAttack;
 `include(Log)
 `include(PawnUtils)
 
+event PreBeginPlay() {
+	super.PreBeginPlay();
+	combatZone.addArea(-8400);
+}
+
 state Combating {
     function TurnToTarget(float Angle) {
         local name TurnSeq;
