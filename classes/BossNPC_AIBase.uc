@@ -380,31 +380,92 @@ Begin:
     goto 'Begin';
 }
 
+const STUCK_CHECK_DELAY = 3;
+const STUCK_MOVE_THRESHOLD = 2500.0; // 50*50 because we check the squared distance
+
 state Chasing {
-    local float dist;
+    local vector tmpDest;
+    local float lastStuckCheck;
+    local vector lastStuckLoc;
 
     event EndState(Name NextStateName) {
         m_Pawn.Acceleration = Vec3(0, 0, 0);
-
         m_Pawn.m_IsSprinting = false;
     }
 
-Begin:
-    while (m_CombatTarget != none) {
-	    dist = VSize2D(m_CombatTarget.Location - m_Pawn.Location);
+	// straight path or navmesh fail -> false, true if navmesh path is found
+    function bool useNavmesh() {
+        local float dist;
+        local bool foundPath;
 
-        if (dist > m_CombatChaseSprintDistance) {
+        dist = VSize2D(m_CombatTarget.Location - m_Pawn.Location);
+		if (dist > m_CombatChaseSprintDistance) {
             m_Pawn.m_IsSprinting = true;
         }
 
-        RotateTo( Normal2D(m_CombatTarget.Location - m_Pawn.Location));
-        FinishRotation();
-        MoveToward(m_CombatTarget,, m_CombatChaseEndDistance / 3);
-
-        if (dist <= m_CombatChaseEndDistance) {
-            GotoState('Combating');
-            break;
+        if (m_CombatTarget != none && dist > m_CombatChaseEndDistance && !NavigationHandle.ActorReachable(m_CombatTarget)) {
+			if (!FindNavMeshPath()) {
+				 m_CombatTarget = none;
+				 gotostate('Idle');
+			}
+			else if (!m_Pawn.ReachedDestination(m_CombatTarget))
+				foundPath = true;
         }
+
+        return foundPath;
+    }
+
+    // Function to grab the appropriate A* path to travese to get to the goal.
+	function bool FindNavMeshPath() {
+		NavigationHandle.ClearConstraints();
+		// Set New Constraints
+		class'NavMeshPath_Toward'.static.TowardGoal(NavigationHandle, m_CombatTarget);
+		class'NavMeshGoal_At'.static.AtActor(NavigationHandle, m_CombatTarget, 100, true);
+
+		return NavigationHandle.FindPath();
+	}
+
+	// we got close enough to directly move towards the target, so continue to check if this still holds
+	function bool approachDirectly() {
+		local float dist;
+		local bool isStuck;
+
+		if (worldinfo.timeSeconds - lastStuckCheck > STUCK_CHECK_DELAY) {
+			lastStuckCheck = worldinfo.timeSeconds;
+			isStuck = VSizeSq(lastStuckLoc - m_pawn.location) < STUCK_MOVE_THRESHOLD;
+			lastStuckLoc = m_pawn.location;
+		}
+
+		SetFocalPoint(m_CombatTarget.Location + Vect(0,0,1) * (m_Pawn.BaseEyeHeight));
+		dist = VSize2D(m_CombatTarget.Location - m_Pawn.Location);
+
+		return dist > m_CombatChaseEndDistance / 1.2 && !isStuck;
+    }
+
+Begin:
+    if (m_CombatTarget != none) {
+        RotateTo (Normal2D(m_CombatTarget.Location - m_Pawn.Location));
+        FinishRotation();
+
+        NavigationHandle.SetFinalDestination(m_CombatTarget.Location);
+
+        while (useNavmesh() && NavigationHandle.GetNextMoveLocation(tmpDest, m_Pawn.GetCollisionRadius())) {
+            SetFocalPoint(tmpDest + Vect(0,0,1) * (m_Pawn.BaseEyeHeight));
+			if (!NavigationHandle.SuggestMovePreparation(tmpDest,self)) {
+				MoveTo(tmpDest);
+			}
+			else
+				sleep(0.2);
+        }
+
+        // move the last bit directly towards target
+        while (approachDirectly())
+	    	MoveToward(m_CombatTarget, m_CombatTarget, m_CombatChaseEndDistance / 3);
+
+		if (m_CombatTarget != none)
+        	GotoState('Combating');
+        else
+            GotoState('Idle');
     }
 }
 
