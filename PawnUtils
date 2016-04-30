@@ -25,11 +25,15 @@ private static simulated function bool isMason(Actor act) {
 private static simulated function bool testFamilyFaction(Actor act, EAOCFaction faction) {
 	local AOCPawn p;
 
-	if(act != none)
+	if (act != none)
 		p = AOCPawn(act);
 
-	if(p == none && Controller(act) != none)
+	if (p == none && Controller(act) != none) {
 		p = AOCPawn(Controller(act).pawn);
+
+		if (p == none && Vehicle(Controller(act).pawn) != none)
+			p = AOCPawn(Vehicle(Controller(act).pawn).Driver);
+	}
 
 	if (p != none && p.PawnInfo.myFamily.FamilyFaction == faction )
 		return true;

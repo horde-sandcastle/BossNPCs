@@ -25,6 +25,7 @@ struct AttackToDist {
 
 var bool           m_SmashAttackEnabled;
 var ECyclopeAttack m_CurrentAttack;
+var Vehicle tookHitFromSW;
 
 `include(Stocks)
 `include(Log)
@@ -89,6 +90,7 @@ state Hit {
 }
 
 state Stunned {
+	local pawn tmpTarget;
 
 	function bool BeginStunSequence() {
 		m_Pawn.PlayCustomAnim('Knelling_in', true);
@@ -105,6 +107,16 @@ state Stunned {
         else
 			m_Pawn.PlayCustomAnim('Knelling_out', true);
     }
+
+Finished:
+    if (tookHitFromSW != none) { // got stunned by a ballista -> destroy it!
+    	RotateTo(tookHitFromSW.location - m_Pawn.location);
+		FinishRotation();
+		m_Pawn.PlayCustomAnim(GetAttackSequenceName(CYCLOPE_ATTACK_THROW_GROUND), true);
+		FinishAnim(m_Pawn.m_CustomAnimSequence);
+		tookHitFromSW = none;
+	}
+	GotoState('Idle');
 }
 
 static private function name GetAttackSequenceName(ECyclopeAttack attackID) {

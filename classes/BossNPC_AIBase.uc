@@ -167,7 +167,11 @@ event Tick(float DeltaTime) {
     }
     super.Tick(DeltaTime);
 
-    if(!isBusyWithTask())
+    if (isBusyWithTask()) {
+		if (isInState('idle')) // task was interrupted
+			GotoState('DoingTask');
+    }
+    else
     	manageCombatTarget(DeltaTime);
 }
 
@@ -277,7 +281,7 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
     m_HitAngle = Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776;
 
     if (m_NextHitDelay <= 0) {
-        if (m_pawn.isStrongHit(damage))
+        if (m_pawn.isStrongHit(damage, SandcastlePawn(InstigatedBy.pawn)))
             GoToState('Stunned');
         else
         	PushState('Hit');
@@ -611,12 +615,16 @@ Begin:
 	    autoAggro = true;
 	}
 
+goto('Finished');
+
+Finished:
     GotoState('Idle');
 }
 
 function receivedCriticalHit() {}
 
 function PawnDiedEvent(Controller Killer, class<DamageType> DamageType) {
+	PlaySound(SoundCue'BossNPCs_Content.cyclops_death_Cue');
     m_Dead = true;
     SetTimer(6.0, false, '_Dead');
 }

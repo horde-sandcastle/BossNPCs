@@ -332,7 +332,7 @@ simulated function Released() {
 
 	if(Role == Role_Authority) {
 		self.Mesh.GetSocketWorldLocationAndRotation('Right_Socket', ballPos, ballRot);
-		targetLoc = BossNPC_CyclopeAI(controller).m_CombatTarget.location;
+		targetLoc = BossNPC_CyclopeAI(controller).tookHitFromSW != none ? BossNPC_CyclopeAI(controller).tookHitFromSW.location : BossNPC_CyclopeAI(controller).m_CombatTarget.location;
 	    SpawnProjectile(ballPos, targetLoc);
 	}
 }
@@ -389,6 +389,7 @@ event TakeDamage(
 					smallHit = true;
 				}
 			}
+			smallHit = smallHit ? Vehicle(DamageCauser) != none : smallHit;
 
 			Damage = smallHit ? minDmg : maxDmg;
 			super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
@@ -407,7 +408,7 @@ event TakeDamage(
 
 const HitsUntilStun = 35;
 
-simulated function bool isStrongHit(int damage) {
+function bool isStrongHit(int damage, SandcastlePawn attacker) {
 	local bool enoughHits;
 	local bool hardDmg;
 
@@ -416,7 +417,7 @@ simulated function bool isStrongHit(int damage) {
 		lastHitNormalCount = hitNormalRepCount;
 	hardDmg = damage > class'BossNPC_Cyclope'.const.minDmg;
 
-	return (hardDmg || enoughHits) && difficulty < EDM_HARD;
+	return (hardDmg || enoughHits || attacker.PawnState == ESTATE_SIEGEWEAPON) && difficulty < EDM_HARD;
 }
 
 simulated function displayHitEffects(bool StrongHit) {
@@ -446,6 +447,11 @@ simulated function displayHitEffects(bool StrongHit) {
 
 simulated function String GetNotifyKilledHudMarkupText() {
 	return "<font color=\"#800000\">Cyclops</font>";
+}
+
+function NotifyHitByBallista(AOCProj_ModBallistaBolt bolt) {
+	BossNPC_CyclopeAI(controller).tookHitFromSW = bolt.InstigatorBaseVehicle;
+	TakeDamage(class'BossNPC_Cyclope'.const.maxDmg, bolt.InstigatorController, location + vec3(1,1,1), vec3(0,0,0), bolt.MyDamageType,, bolt);
 }
 
 simulated function PlaySound_Breathing() {

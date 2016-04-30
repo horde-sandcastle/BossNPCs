@@ -217,10 +217,10 @@ event TakeDamage(
 
 	local bool StrongHit;
     local SandcastlePawn attacker;
-    attacker = SandcastlePawn(InstigatedBy.pawn);
+    attacker = SandcastlePawn(Vehicle(InstigatedBy.pawn) != none ? vehicle(InstigatedBy.pawn).driver : Vehicle(InstigatedBy.pawn));
 
 	if(isMason(attacker)) {
-		StrongHit = isStrongHit(damage);
+		StrongHit = isStrongHit(damage, attacker);
 		if (StrongHit)
 			BossNPC_CyclopeAI(controller).receivedCriticalHit();
 		playHitSound(attacker, StrongHit);
@@ -232,7 +232,7 @@ event TakeDamage(
 /**
 *  decides which effects to play (sounds + blood) and if the npc gets stunned by the hit.
 */
-simulated function bool isStrongHit(int damage) {
+function bool isStrongHit(int damage, SandcastlePawn attacker) {
 	return damage >= 80;
 }
 
@@ -311,6 +311,10 @@ Begin:
 
 function String GetNotifyKilledHudMarkupText() {
 	return "<font color=\"#B27500\">Boss NPC</font>";
+}
+
+function NotifyHitByBallista(AOCProj_ModBallistaBolt bolt) {
+	TakeDamage(80, bolt.InstigatorController, location + vec3(1,1,1), vec3(0,0,0), bolt.MyDamageType,, bolt);
 }
 
 simulated function DisableAnimationLodding() {
