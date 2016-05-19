@@ -43,6 +43,27 @@ var const byte noRestrictedAttack;
 
 var Area combatZone; // only targets inside this area are considered
 
+//// local state vars,  ATTENTION: NEVER EVER USE STATE SCOPED VARIABLES!!!! (crashes game)
+// used for task state
+var float moveOffset;
+
+var vector tmpDest;
+var float lastStuckCheck;
+var vector lastStuckLoc;
+
+var float comb_dist;
+var Vector comb_dirToTarget;
+var float comb_targetAngle;
+var bool comb_doAttack;
+
+var float returnedCooldown;
+var name currseq;
+
+var float stun_beginTime;
+var bool stun_receivedHit;
+
+//// state vars send
+
 // default: true, denotes if NPC should automatically search for targets and attack
 // if false, the cyclops only attacks after being attacked
 var() bool autoAggro;
@@ -102,8 +123,7 @@ function bool IsValidCombatTarget(Pawn targetPawn, bool noticeOnly) {
 	}
 
 	//return self.ActorReachable(targetPawn);
-	if(!autoAggro) return false;
-	return true;
+	return autoAggro;
 }
 
 function Pawn FindCombatTarget() {
@@ -231,7 +251,6 @@ function manageCombatTarget(float DeltaTime) {
 
     if (m_CombatTarget == none || !IsValidCombatTarget(m_CombatTarget, false)) {
         m_CombatTargetSearchDelay -= DeltaTime;
-
         if (m_CombatTargetSearchDelay <= 0) {
         	m_CombatTargetSearchDelay = 0.5;
             otherTarget = FindCombatTarget();
@@ -289,8 +308,6 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
 }
 
 state DoingTask {
-	local float moveOffset;
-
 	event EndState(Name NextStateName) {m_Pawn.m_IsSprinting = false;}
 
     function DoTask() {
@@ -316,8 +333,7 @@ Begin:
 	// ends the state to do the task when arrived
 	DoTask();
 
-	if (activeTask.npcInReach > 200.f)
-			moveOffset =  activeTask.npcInReach - 200.f;
+	moveOffset = activeTask.npcInReach > 200.f ? activeTask.npcInReach - 200.f : 20.f;
     m_Pawn.m_IsSprinting = activeTask.sprint;
 	MoveToward(activeTask, ,moveOffset);
 	sleep(0.5);
@@ -388,9 +404,6 @@ const STUCK_CHECK_DELAY = 3;
 const STUCK_MOVE_THRESHOLD = 2500.0; // 50*50 because we check the squared distance
 
 state Chasing {
-    local vector tmpDest;
-    local float lastStuckCheck;
-    local vector lastStuckLoc;
 
     event EndState(Name NextStateName) {
         m_Pawn.Acceleration = Vec3(0, 0, 0);
@@ -463,6 +476,7 @@ Begin:
         }
 
         // move the last bit directly towards target
+        lastStuckLoc = vec3(0,0,0);
         while (approachDirectly())
 	    	MoveToward(m_CombatTarget, m_CombatTarget, m_CombatChaseEndDistance / 3);
 
@@ -474,11 +488,6 @@ Begin:
 }
 
 state Combating {
-	local float dist;
-    local Vector dirToTarget;
-    local float targetAngle;
-    local bool doAttack;
-    local bool turning;
 
     event BeginState(Name PreviousStateName) {
         m_Pawn.m_IsInCombat = true;
@@ -487,7 +496,6 @@ state Combating {
     event EndState(Name NextStateName) {}
 
     function TurnToTarget(float angle) {
-        turning = true;
         if (Abs(angle) > 15) {
 	        RotateTo(Normal2D(m_CombatTarget.Location - m_Pawn.Location));
         }
@@ -495,18 +503,17 @@ state Combating {
 
 Begin:
     if (m_CombatTarget != none) {
-        GetPawnRelations(m_pawn, m_CombatTarget, targetAngle, dirToTarget, dist);
+        GetPawnRelations(m_pawn, m_CombatTarget, comb_targetAngle, comb_dirToTarget, comb_dist);
 
         if (Rand(11) < 1 && restrictedAttack == noRestrictedAttack) {
-        	doAttack = true; // we may need to check cansee taget here
+        	comb_doAttack = true; // we may need to check cansee taget here
         }
         else {
-            doAttack = dist <= m_CombatChaseEndDistance;
+            comb_doAttack = comb_dist <= m_CombatChaseEndDistance;
         }
 
-        if (doAttack) {
-	        TurnToTarget(targetAngle);
-	        // todo: we may need to sync the rotation with the animation
+        if (comb_doAttack) {
+	        TurnToTarget(comb_targetAngle);
 	        FinishRotation();
 		    if (m_CombatCanAttack) {
 		    	GotoState('Attacking');
@@ -521,8 +528,6 @@ goto 'Begin';
 }
 
 state Attacking {
-    local float returnedCooldown;
-    local name currseq;
 
     event EndState(Name NextStateName) {
         if( !isAttackRestricted )
@@ -585,22 +590,20 @@ Begin:
 const DEFAULT_STUN_DURATION = 10;
 
 state Stunned {
-	local float beginTime;
-	local bool receivedHit;
 
 	function bool ContinueStun() {
-        return worldinfo.TimeSeconds - beginTime < DEFAULT_STUN_DURATION && !receivedHit;
+        return worldinfo.TimeSeconds - stun_beginTime < DEFAULT_STUN_DURATION && !stun_receivedHit;
     }
 
 	function bool BeginStunSequence() { return false;}
     function playIdleStun();
     function EndStunSequence();
     function receivedCriticalHit() {
-        receivedHit = true;
+        stun_receivedHit = true;
     }
 
 Begin:
-	beginTime = worldinfo.TimeSeconds;
+	stun_beginTime = worldinfo.TimeSeconds;
 	m_pawn.acceleration = vect(0,0,0);
 
 	if (BeginStunSequence()) {

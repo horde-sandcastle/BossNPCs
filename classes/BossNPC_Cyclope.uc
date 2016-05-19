@@ -389,7 +389,7 @@ event TakeDamage(
 					smallHit = true;
 				}
 			}
-			smallHit = smallHit ? Vehicle(DamageCauser) != none : smallHit;
+			smallHit = smallHit ? Vehicle(DamageCauser) == none : smallHit;
 
 			Damage = smallHit ? minDmg : maxDmg;
 			super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
@@ -450,8 +450,10 @@ simulated function String GetNotifyKilledHudMarkupText() {
 }
 
 function NotifyHitByBallista(AOCProj_ModBallistaBolt bolt) {
-	BossNPC_CyclopeAI(controller).tookHitFromSW = bolt.InstigatorBaseVehicle;
-	TakeDamage(class'BossNPC_Cyclope'.const.maxDmg, bolt.InstigatorController, location + vec3(1,1,1), vec3(0,0,0), bolt.MyDamageType,, bolt);
+	if (difficulty < EDM_HARD) {
+		BossNPC_CyclopeAI(controller).tookHitFromSW = bolt.InstigatorBaseVehicle;
+		TakeDamage(class'BossNPC_Cyclope'.const.maxDmg, bolt.InstigatorController, location + vec3(1,1,1), vec3(0,0,0), bolt.MyDamageType,, bolt);
+	}
 }
 
 simulated function PlaySound_Breathing() {

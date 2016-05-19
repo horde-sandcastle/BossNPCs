@@ -9,7 +9,7 @@ var struct BossNpcAttackInfo {
 	var bool				bFullDamage;
 	var float      			DamageFalloffExponent;
 	var bool				playTumble;
-} BossNpcAttackInfoTmp;
+}  BossNpcAttackInfoTmp;
 
 var array<BossNpcAttackInfo> BossNpcAttackInfos;
 
@@ -56,6 +56,14 @@ var DIFFICULTY_MODE difficulty;
 `include(Log)
 `include(PawnUtils)
 `include(bossNpcAttacks)
+
+exec function debugNpc() {
+	setTimer(2, true, 'printState');
+}
+
+function printState() {
+	lognotify("state:"@GetStateName()@", npc:"@self);
+}
 
 simulated function postBeginPlay() {
 	if (NPCController !=none)
@@ -217,7 +225,7 @@ event TakeDamage(
 
 	local bool StrongHit;
     local SandcastlePawn attacker;
-    attacker = SandcastlePawn(Vehicle(InstigatedBy.pawn) != none ? vehicle(InstigatedBy.pawn).driver : Vehicle(InstigatedBy.pawn));
+    attacker = SandcastlePawn(Vehicle(InstigatedBy.pawn) != none ? vehicle(InstigatedBy.pawn).driver : InstigatedBy.pawn);
 
 	if(isMason(attacker)) {
 		StrongHit = isStrongHit(damage, attacker);

@@ -71,6 +71,7 @@ state Combating {
 }
 
 state Hit {
+
     function bool BeginHitSequence(float angle) {
         if (angle < -45) {
             m_Pawn.PlayCustomAnim('Hit_Left');
@@ -87,10 +88,28 @@ state Hit {
 
         return true;
     }
+
+Begin:
+    m_pawn.acceleration = vect(0,0,0);
+    FinishRotation();
+
+    BeginHitSequence(m_HitAngle);
+    FinishAnim(m_Pawn.m_CustomAnimSequence);
+    m_NextHitDelay = RandRange(HIT_DEALY_MIN, HIT_DELAY_MAX);
+    autoAggro = true;
+
+    if (tookHitFromSW != none && difficulty == EDM_HARD) { //  got hit by a ballista -> destroy it! In normal mode we would do this after stun.
+    	RotateTo(tookHitFromSW.location - m_Pawn.location);
+		FinishRotation();
+		m_Pawn.PlayCustomAnim(GetAttackSequenceName(CYCLOPE_ATTACK_THROW_GROUND), true);
+		FinishAnim(m_Pawn.m_CustomAnimSequence);
+		tookHitFromSW = none;
+	}
+
+    PopState();
 }
 
 state Stunned {
-	local pawn tmpTarget;
 
 	function bool BeginStunSequence() {
 		m_Pawn.PlayCustomAnim('Knelling_in', true);
@@ -102,7 +121,7 @@ state Stunned {
     }
 
     function EndStunSequence() {
-        if (receivedHit)
+        if (stun_receivedHit)
             m_Pawn.PlayCustomAnim('Die_impaled', true);
         else
 			m_Pawn.PlayCustomAnim('Knelling_out', true);
@@ -162,10 +181,7 @@ state Attacking {
 
         Cooldown = 0.8;
 
-        if( activeTask != none )
-            GetPawnRelations(m_pawn, activeTask, targetAngle, dirToTarget, dist);
-        else
-            GetPawnRelations(m_pawn, m_CombatTarget, targetAngle, dirToTarget, dist);
+        GetPawnRelations(m_pawn, activeTask != none ? activeTask : m_CombatTarget, targetAngle, dirToTarget, dist);
 
         if (dist > m_CombatChaseEndDistance) {
 			attack = CYCLOPE_ATTACK_THROW_GROUND;
