@@ -389,8 +389,7 @@ event TakeDamage(
 					smallHit = true;
 				}
 			}
-			smallHit = smallHit ? Vehicle(DamageCauser) == none : smallHit;
-
+			smallHit = smallHit ? AOCProj_ModBallistaBolt(DamageCauser) == none : smallHit;
 			Damage = smallHit ? minDmg : maxDmg;
 			super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
 		break;
@@ -400,6 +399,9 @@ event TakeDamage(
 				if (BestBone == 'SK_Head') {
 					Damage = damage > maxDmg ? maxDmg : damage;
 					super.TakeDamage(Damage, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
+				}
+				else if (AOCProj_ModBallistaBolt(DamageCauser) != none) {
+					super.TakeDamage(minDmg, InstigatedBy, HitLocation, Momentum, DamageType, myHitInfo, DamageCauser);
 				}
 			}
 			break;
@@ -450,10 +452,9 @@ simulated function String GetNotifyKilledHudMarkupText() {
 }
 
 function NotifyHitByBallista(AOCProj_ModBallistaBolt bolt) {
-	if (difficulty < EDM_HARD) {
-		BossNPC_CyclopeAI(controller).tookHitFromSW = bolt.InstigatorBaseVehicle;
-		TakeDamage(class'BossNPC_Cyclope'.const.maxDmg, bolt.InstigatorController, location + vec3(1,1,1), vec3(0,0,0), bolt.MyDamageType,, bolt);
-	}
+	// so cyclops can destroy the SW afterwards
+	BossNPC_CyclopeAI(controller).tookHitFromSW = bolt.InstigatorBaseVehicle;
+	TakeDamage(class'BossNPC_Cyclope'.const.maxDmg, bolt.InstigatorController, location + vec3(1,1,1), vec3(0,0,0), bolt.MyDamageType,, bolt);
 }
 
 simulated function PlaySound_Breathing() {
