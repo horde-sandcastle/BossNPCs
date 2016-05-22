@@ -299,12 +299,10 @@ function NotifyTakeHit(Controller InstigatedBy, vector HitLocation, int Damage, 
 
     m_HitAngle = Acos(targetAngle) * (dirToTarget.X < 0 ? -1 : +1) * 57.295776;
 
-    if (m_NextHitDelay <= 0) {
-        if (m_pawn.isStrongHit(damage, SandcastlePawn(InstigatedBy.pawn)))
-            GoToState('Stunned');
-        else
-        	PushState('Hit');
-    }
+    if (m_pawn.isStrongHit(damage, SandcastlePawn(InstigatedBy.pawn)))
+        GoToState('Stunned');
+    else if (m_NextHitDelay <= 0)
+    	PushState('Hit');
 }
 
 state DoingTask {
@@ -368,6 +366,16 @@ state Wandering {
 	event BeginState(Name PreviousStateName) {
 		m_WanderRemainingTime = RandRange(m_WanderDuration.X, m_WanderDuration.Y);
 		m_WanderDirection = RandGroundDirection();
+		if (walksOutOfCombatZone(m_WanderDirection, 700.f)) {
+			m_WanderDirection = combatZone.getDirInwards(m_Pawn.location);
+			m_WanderDirection.z = 0;
+		}
+	}
+
+	function bool walksOutOfCombatZone(vector dir, float dist) {
+		local vector dest;
+		dest = dir * dist + m_Pawn.location;
+		return combatZone != none && !combatZone.isInside(dest);
 	}
 
 	event EndState(Name NextStateName) {
@@ -590,6 +598,10 @@ Begin:
 const DEFAULT_STUN_DURATION = 10;
 
 state Stunned {
+
+	event BeginState( Name PreviousStateName ) {
+		stun_receivedHit = false;
+	}
 
 	function bool ContinueStun() {
         return worldinfo.TimeSeconds - stun_beginTime < DEFAULT_STUN_DURATION && !stun_receivedHit;

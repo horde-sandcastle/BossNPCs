@@ -281,10 +281,12 @@ function gibbedBy(actor Other) { }
 
 simulated function bool Died(Controller Killer, class<DamageType> DamageType, vector HitLocation) {
 	BossNPC_AIBase(self.Controller).PawnDiedEvent(Killer, DamageType);
-	GotoState('Dying');
+	super.Died(killer, DamageType, HitLocation);
 
 	return true;
 }
+
+function SetDyingPhysics() {}
 
 simulated function _Dead() {
 	deathDust.deactivateSystem();
