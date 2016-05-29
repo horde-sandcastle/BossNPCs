@@ -454,7 +454,9 @@ simulated function String GetNotifyKilledHudMarkupText() {
 function NotifyHitByBallista(AOCProj_ModBallistaBolt bolt) {
 	// so cyclops can destroy the SW afterwards
 	BossNPC_CyclopeAI(controller).tookHitFromSW = bolt.InstigatorBaseVehicle;
-	TakeDamage(class'BossNPC_Cyclope'.const.maxDmg, bolt.InstigatorController, location + vec3(1,1,1), vec3(0,0,0), bolt.MyDamageType,, bolt);
+	// ignore mobile sw on hard mode
+	if (difficulty < EDM_HARD || bolt.InstigatorBaseVehicle != none)
+		TakeDamage(class'BossNPC_Cyclope'.const.maxDmg, bolt.InstigatorController, location + vec3(1,1,1), vec3(0,0,0), bolt.MyDamageType,, bolt);
 }
 
 simulated function PlaySound_Breathing() {

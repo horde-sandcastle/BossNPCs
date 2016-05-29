@@ -57,14 +57,6 @@ var DIFFICULTY_MODE difficulty;
 `include(PawnUtils)
 `include(bossNpcAttacks)
 
-exec function debugNpc() {
-	setTimer(2, true, 'printState');
-}
-
-function printState() {
-	lognotify("state:"@GetStateName()@", npc:"@self);
-}
-
 simulated function postBeginPlay() {
 	if (NPCController !=none)
 		self.ControllerClass = NPCController;
